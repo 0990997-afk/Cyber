@@ -21,10 +21,34 @@ const playfair = Playfair_Display({
   display: "swap",
 });
 
+const TITLE = "Cyber Sommelier — AI Sommelier & Wine Pairing Assistant";
+const DESCRIPTION =
+  "Сфотографуйте страву — Cyber Sommelier миттєво розпізнає її та підбере ідеальне вино з поясненням людською мовою. AI-сомельє: від фото страви до рекомендації вина.";
+
 export const metadata: Metadata = {
-  title: "Cyber Sommelier — ваш персональний AI-сомельє",
-  description:
-    "Сфотографуйте меню, винну полицю — або просто опишіть вечерю. Cyber Sommelier миттєво підбере ідеальне вино з поясненням людською мовою.",
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    "AI Sommelier",
+    "Wine Pairing Assistant",
+    "Food Photo to Wine Recommendation",
+    "AI-сомельє",
+    "підбір вина",
+    "вино до страви",
+  ],
+  applicationName: "Cyber Sommelier",
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    siteName: "Cyber Sommelier",
+    locale: "uk_UA",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({

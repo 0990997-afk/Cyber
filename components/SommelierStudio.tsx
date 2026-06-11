@@ -106,16 +106,22 @@ export default function SommelierStudio() {
   const steps = mode === "photo" ? STEPS_PHOTO : STEPS_TEXT;
 
   useEffect(() => {
-    setVoiceOk(!!getRecognition());
-    setTtsOk(typeof window !== "undefined" && "speechSynthesis" in window);
+    const id = setTimeout(() => {
+      setVoiceOk(!!getRecognition());
+      setTtsOk(typeof window !== "undefined" && "speechSynthesis" in window);
+    }, 0);
+    return () => clearTimeout(id);
   }, []);
 
   useEffect(() => {
     if (!loading) return;
-    setStep(0);
     const arr = mode === "photo" ? STEPS_PHOTO : STEPS_TEXT;
+    const resetId = setTimeout(() => setStep(0), 0);
     const id = setInterval(() => setStep((s) => (s + 1) % arr.length), 1100);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(resetId);
+      clearInterval(id);
+    };
   }, [loading, mode]);
 
   function toggleVoice() {
@@ -234,6 +240,21 @@ export default function SommelierStudio() {
           Сфотографуйте, опишіть або скажіть голосом — отримаєте смаковий аналіз і
           три вина з поясненням. Агент звіряється з реальними даними.
         </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          {[
+            "🤖 AI-рекомендації вин",
+            "📷 Аналіз фото страви",
+            "⚡ Результат за секунди",
+            "🇺🇦 Українською",
+          ].map((badge) => (
+            <span
+              key={badge}
+              className="rounded-full border border-line bg-barrel/60 px-3 py-1.5 font-mono text-[11px] tracking-[0.05em] text-ash"
+            >
+              {badge}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="mx-auto mt-10 max-w-3xl rounded-3xl border border-line bg-barrel/40 p-6 ring-copper sm:p-8">
