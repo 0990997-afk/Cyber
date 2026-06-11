@@ -1,0 +1,94 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #2a0a14;
+  --color-bg-soft: #36101f;
+  --color-bg-elevated: #431527;
+  --color-gold: #c9a24b;
+  --color-gold-soft: #e3c67e;
+  --color-cream: #f5efe6;
+  --color-muted: #c9b6a6;
+  --color-wine: #7e1f2b;
+  --color-line: rgba(201, 162, 75, 0.22);
+
+  --font-display: var(--font-playfair);
+  --font-sans: var(--font-manrope);
+}
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background-color: var(--color-bg);
+  color: var(--color-cream);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+/* Фон «вечір»: тепла віньєтка-софіт над сценою + глибина залу */
+.terasa-bg {
+  background:
+    radial-gradient(
+      1100px 600px at 50% -12%,
+      rgba(201, 162, 75, 0.18),
+      transparent 60%
+    ),
+    radial-gradient(
+      900px 760px at 88% 4%,
+      rgba(126, 31, 43, 0.4),
+      transparent 64%
+    ),
+    linear-gradient(180deg, #2a0a14 0%, #230811 58%, #1c060d 100%);
+  background-attachment: fixed;
+}
+
+/* Тонкий золотий роздільник */
+.hairline {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-line),
+    transparent
+  );
+}
+
+.text-gold-gradient {
+  background: linear-gradient(180deg, var(--color-gold-soft), var(--color-gold));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.animate-rise {
+  animation: riseIn 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+@keyframes glowPulse {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.animate-glow {
+  animation: glowPulse 1.6s ease-in-out infinite;
+}
+
+/* Делікатний скрол */
+::selection {
+  background: rgba(201, 162, 75, 0.3);
+  color: var(--color-cream);
+}
