@@ -42,7 +42,7 @@ lib/
   sommelier.ts          core logic: prompt building, Claude calls (with web search + thinking), JSON parsing/validation, fallback assembly
   wines.ts              ~300-wine catalog generated deterministically from grape archetypes; dish analysis heuristics, pairing/match scoring
 components/
-  Hero, HowItWorks, SommelierStudio, WineCard, TasteProfile, Footer, Logo
+  Hero, HowItWorks, SommelierStudio, WineCard, PhotoAnalysisCard, TasteProfile, Footer, Logo
 docs/                    pitch.md, reels-script.md, funnel-map.md (marketing materials, not code)
 ```
 
@@ -71,6 +71,31 @@ docs/                    pitch.md, reels-script.md, funnel-map.md (marketing mat
   via `@theme` (e.g. `cellar`, `barrel`, `terracotta`, `ruby`, `gold`, `parchment`,
   `ash`, `line`). Use these semantic color names rather than raw hex/Tailwind
   defaults to stay consistent with the warm "wine cellar / parchment" look.
+- **AI response shape**: `lib/sommelier.ts` validates Claude's JSON with `zod`
+  (`aiResultSchema`) before mapping it onto `SommelierResult`. All AI fields
+  are optional in the schema so partial/older responses degrade gracefully
+  instead of throwing.
+  - `photo?: PhotoAnalysis` — only present when an image was uploaded **and**
+    Claude actually returned a `photo` block (real vision analysis: detected
+    dish, confidence 0..1, ingredients, cuisine style, cooking method).
+    Rendered by `components/PhotoAnalysisCard.tsx`.
+  - `avoid?: string` — one-sentence "what to avoid" pairing advice. Always
+    populated (AI value if present, else `avoidFor()` from `lib/wines.ts`).
+  - `WineRec.alternative?: string` — alternative wine suggestion per
+    recommendation (AI value if present, else `alternativeFor()` from
+    `lib/wines.ts`).
+  - `demo?: boolean` — `true` only in `fallbackResult` (no API key / all
+    Claude attempts failed). UI shows a distinct "demo mode" banner, with
+    different copy depending on whether a photo was submitted.
+- **Per-call timeout**: `AGENT_TIMEOUT_MS = 25_000` is passed as the second
+  arg to every `client.messages.create()` call in `lib/sommelier.ts`, so a
+  single hung attempt in the resilience chain can't exhaust the route's
+  `maxDuration = 60s`.
+- **Single-provider MVP by design**: only Claude (`SOMMELIER_MODEL`) is used
+  for vision + web search + reasoning. `OPENAI_API_KEY`, `TAVILY_API_KEY`,
+  `SERPAPI_API_KEY`, and `PERPLEXITY_API_KEY` are documented in `README.md`
+  as **reserved extension points only** — do not wire up additional
+  providers unless explicitly requested.
 
 ## Linting / type-checking
 - `npm run lint` uses `eslint-config-next` (core-web-vitals + typescript) via

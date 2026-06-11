@@ -46,14 +46,27 @@ export interface WineRec {
   servingTemp: string;
   decant: string;
   snack: string;
+  alternative?: string; // альтернативне вино/стиль, якщо це не підходить
+}
+
+// Структурований аналіз фото страви (AI vision).
+export interface PhotoAnalysis {
+  detectedDish: string; // людський опис того, що AI бачить на фото
+  confidence: number; // 0..1 — впевненість розпізнавання
+  ingredients: string[];
+  cuisineStyle: string;
+  cookingMethod: string;
 }
 
 export interface SommelierResult {
   dish: DishAnalysis;
+  photo?: PhotoAnalysis; // присутній лише якщо фото реально проаналізовано AI vision
   recommendations: WineRec[];
   honestNote?: string; // чесний вердикт, якщо вино — не найкраща пара
+  avoid?: string; // чого уникати при виборі вина до цієї страви
   sources: string[]; // звідки дані (веб-пошук / локальна база)
   engine: "claude" | "claude+web" | "fallback";
+  demo?: boolean; // true — це демо-підбір без реального AI-аналізу фото
 }
 
 export interface SommelierImage {

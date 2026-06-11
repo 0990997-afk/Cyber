@@ -1,4 +1,5 @@
 import "server-only";
+import { z } from "zod";
 import type Anthropic from "@anthropic-ai/sdk";
 import { getAnthropic, SOMMELIER_MODEL } from "./anthropic";
 import {
@@ -8,17 +9,25 @@ import {
   candidatesByTier,
   matchScore,
   honestNoteFor,
+  alternativeFor,
+  avoidFor,
 } from "./wines";
 import { TIER_ORDER, TIER_META } from "./types";
 import type {
   Wine,
   DishAnalysis,
   WineRec,
+  PhotoAnalysis,
   SommelierInput,
   SommelierResult,
 } from "./types";
 
 export type { SommelierInput, SommelierResult } from "./types";
+
+// Кожна спроба виклику Claude обмежена за часом, щоб жодна з них не
+// "з'їла" увесь ліміт маршруту (maxDuration = 60s) і дала шанс наступній
+// спробі/фолбеку відпрацювати.
+const AGENT_TIMEOUT_MS = 25_000;
 
 // ───────────────── Пул кандидатів (локальна база) ─────────────────
 
@@ -51,13 +60,23 @@ function describeWine(w: Wine): string {
 
 // ───────────────── Промпт ─────────────────
 
-function systemRules(web: boolean): string {
-  return `Ти — КІБЕР-СОМЕЛЬЄ, AI-агент-сомельє з характером. Гасло: «Алгоритм із смаком».
+function systemRules(web: boolean, hasImage: boolean): string {
+  return `Ти — КІБЕР-СОМЕЛЬЄ (Cyber Sommelier), AI-агент-сомельє з характером. Гасло: «Алгоритм із смаком».
 Гість описує або фотографує страву — ти аналізуєш смак і радиш рівно 3 вина: по одному на рівень (budget, middle, premium).
 
 ${web
-      ? `ДОСТУП ДО ЗОВНІШНЬОГО СВІТУ: у тебе є інструмент web_search. ОБОВʼЯЗКОВО скористайся ним, щоб знайти РЕАЛЬНІ дані — відгуки, оцінки, типові ціни в євро та перевірені гастрономічні пари для конкретних вин. Спирайся на реальні джерела, а не лише на свою памʼять. Можеш рекомендувати будь-яке реальне вино, доступне в Україні чи Європі, навіть якщо його немає у списку кандидатів.`
+      ? `ДОСТУП ДО ЗОВНІШНЬОГО СВІТУ: у тебе є інструмент web_search. ОБОВʼЯЗКОВО скористайся ним, щоб знайти РЕАЛЬНІ дані — відгуки, оцінки, типові ціни в євро та перевірені гастрономічні пари для конкретних вин. Спирайся на реальні джерела, а не лише на свою памʼять. Можеш рекомендувати будь-яке реальне вино, доступне в Україні чи Європі, навіть якщо його немає у списку кандидатів. Якщо ти не впевнений, що страва на фото — це саме те, на що схоже, або це маловідома регіональна страва, ОБОВ'ЯЗКОВО пошукай у вебі, щоб уточнити.`
       : `Обирай зі списку кандидатів, який дам у запиті (за id), або з відомих тобі реальних вин.`}
+
+${hasImage
+      ? `АНАЛІЗ ФОТО: На зображенні — страва гостя. Уважно роздивись її та заповни поле "photo":
+- detected_dish: 1–2 речення українською людською мовою про те, що ти бачиш — назва страви, основні інгредієнти, спосіб приготування, і коротко чому вона потребує саме такого вина (як у прикладі: «На фото схоже на стейк із картоплею. Ймовірно, це яловичина середнього просмаження з гарніром. Страва має високу жирність, насичений смак і потребує вина з хорошою структурою та танінами.»).
+- confidence: число 0..1 — ЧЕСНА оцінка впевненості в розпізнаванні. Якщо фото нечітке, страва незвична або погано видно — став низьке значення (0.3–0.6) і чесно опиши невпевненість у detected_dish.
+- ingredients: масив 3–7 ключових інгредієнтів/компонентів, які ти бачиш або припускаєш.
+- cuisine_style: кухня/стиль (напр. «українська», «італійська», «азійська», «грузинська»).
+- cooking_method: спосіб приготування (напр. «гриль», «смаження», «запікання», «сире/тартар», «варіння»).
+Якщо на фото не страва, а щось інше (вино, меню, полиця) — опиши це в detected_dish і постав низьку confidence.`
+      : `Якщо фото немає — НЕ додавай поле "photo" у відповідь взагалі (або залиш його null).`}
 
 ГОЛОС БРЕНДУ:
 - Пояснюй ПРИЧИНУ пари конкретно й по-людськи: «кислотність розрізає жир», «таніни врівноважують жирність», «мінеральність підкреслює морепродукти». Це суть, а не снобізм.
@@ -67,16 +86,19 @@ ${web
 
 ЧЕСНИЙ СОМЕЛЬЄ: якщо вино — НЕ найкраща пара (фастфуд, піца, дуже гостре, надсолодке), чесно скажи це у полі honest_note і запропонуй кращу альтернативу (пиво, кола, саке). Винні варіанти все одно дай — найкращі з можливих. Якщо вино доречне — honest_note порожній рядок.
 
+ЧОГО УНИКАТИ: у полі "avoid" дай ОДНЕ речення українською — якого стилю/типу вина варто уникати до цієї страви і чому (напр. «Уникайте дуже танінних червоних — вони підсилять відчуття гостроти.»).
+
 АНАЛІЗ СТРАВИ (dish): назва + оцінки 0–10: fat (жирність), acidity (кислотність), sweetness (солодкість), salt (солоність), intensity (інтенсивність), spice (пряність), minerality (мінеральність). note — рядок про профіль.
 
-ВИНА: для кожного — tier; wine_id (якщо з мого списку, інакше пропусти); name (виробник+назва+рік); type; grape; region; country; price (у форматі «€18»); match (Cyber Match Score 80–99, чесний, у трьох різний); why (1–2 речення таск-логіки); serving_temp; decant; snack.
+ВИНА: для кожного — tier; wine_id (якщо з мого списку, інакше пропусти); name (виробник+назва+рік); type; grape; region; country; price (у форматі «€18»); match (Cyber Match Score 80–99, чесний, у трьох різний); why (1–2 речення таск-логіки); serving_temp; decant; snack; alternative — 1 речення про альтернативне вино/стиль, якщо цього немає в наявності.
 
 ФОРМАТ — поверни ЛИШЕ валідний JSON, без markdown:
 {
-  "dish": {"name":"","fat":0,"acidity":0,"sweetness":0,"salt":0,"intensity":0,"spice":0,"minerality":0,"note":""},
+  ${hasImage ? `"photo": {"detected_dish":"","confidence":0.0,"ingredients":["",""],"cuisine_style":"","cooking_method":""},\n  ` : ""}"dish": {"name":"","fat":0,"acidity":0,"sweetness":0,"salt":0,"intensity":0,"spice":0,"minerality":0,"note":""},
   "honest_note": "",
+  "avoid": "",
   "recommendations": [
-    {"tier":"budget","wine_id":"","name":"","type":"","grape":"","region":"","country":"","price":"€0","match":0,"why":"","serving_temp":"","decant":"","snack":""}
+    {"tier":"budget","wine_id":"","name":"","type":"","grape":"","region":"","country":"","price":"€0","match":0,"why":"","serving_temp":"","decant":"","snack":"","alternative":""}
   ]
 }`;
 }
@@ -112,18 +134,77 @@ function buildUserContent(
   ];
 }
 
+// ───────────────── Валідація відповіді AI ─────────────────
+
+const photoSchema = z
+  .object({
+    detected_dish: z.string().optional(),
+    confidence: z.number().optional(),
+    ingredients: z.array(z.string()).optional(),
+    cuisine_style: z.string().optional(),
+    cooking_method: z.string().optional(),
+  })
+  .nullable()
+  .optional();
+
+const dishSchema = z
+  .object({
+    name: z.string().optional(),
+    fat: z.number().optional(),
+    acidity: z.number().optional(),
+    sweetness: z.number().optional(),
+    salt: z.number().optional(),
+    intensity: z.number().optional(),
+    spice: z.number().optional(),
+    minerality: z.number().optional(),
+    note: z.string().optional(),
+  })
+  .optional();
+
+const recSchema = z.object({
+  tier: z.string().optional(),
+  wine_id: z.string().optional(),
+  name: z.string().optional(),
+  type: z.string().optional(),
+  grape: z.string().optional(),
+  region: z.string().optional(),
+  country: z.string().optional(),
+  price: z.string().optional(),
+  match: z.number().optional(),
+  why: z.string().optional(),
+  serving_temp: z.string().optional(),
+  decant: z.string().optional(),
+  snack: z.string().optional(),
+  alternative: z.string().optional(),
+});
+
+const aiResultSchema = z.object({
+  photo: photoSchema,
+  dish: dishSchema,
+  honest_note: z.string().optional(),
+  avoid: z.string().optional(),
+  recommendations: z.array(recSchema).optional(),
+});
+
+type AiResult = z.infer<typeof aiResultSchema>;
+
 // ───────────────── Виклик агента ─────────────────
 
 function extractJson(text: string): unknown {
   const s = text.indexOf("{");
   const e = text.lastIndexOf("}");
-  if (s === -1 || e === -1 || e < s) throw new Error("Немає JSON");
+  if (s === -1 || e === -1 || e < s) throw new Error("Немає JSON у відповіді AI");
   return JSON.parse(text.slice(s, e + 1));
 }
 
 function clamp(v: unknown, lo: number, hi: number, def: number): number {
-  const n = typeof v === "number" ? v : def;
+  const n = typeof v === "number" && Number.isFinite(v) ? v : def;
   return Math.max(lo, Math.min(hi, Math.round(n)));
+}
+
+function clamp01(v: unknown, def: number): number {
+  const n = typeof v === "number" && Number.isFinite(v) ? v : def;
+  return Math.round(Math.max(0, Math.min(1, n)) * 100) / 100;
 }
 
 function textOf(message: Anthropic.Message): string {
@@ -145,7 +226,7 @@ async function callAgent(
   const baseReq: Record<string, unknown> = {
     model: SOMMELIER_MODEL,
     max_tokens: 4500,
-    system: [{ type: "text", text: systemRules(opts.web), cache_control: { type: "ephemeral" } }],
+    system: [{ type: "text", text: systemRules(opts.web, !!input.image), cache_control: { type: "ephemeral" } }],
   };
   if (opts.web) baseReq.tools = [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }];
   if (opts.thinking) {
@@ -153,31 +234,47 @@ async function callAgent(
     baseReq.output_config = { effort: "medium" };
   }
 
-  let message = (await client.messages.create({
-    ...baseReq,
-    messages,
-  } as unknown as Anthropic.MessageCreateParamsNonStreaming)) as Anthropic.Message;
+  let message = (await client.messages.create(
+    { ...baseReq, messages } as unknown as Anthropic.MessageCreateParamsNonStreaming,
+    { timeout: AGENT_TIMEOUT_MS },
+  )) as Anthropic.Message;
 
   // Сервер-тул може повертати pause_turn — продовжуємо цикл.
   let guard = 0;
   while (message.stop_reason === "pause_turn" && guard < 4) {
     guard++;
     messages.push({ role: "assistant", content: message.content });
-    message = (await client.messages.create({
-      ...baseReq,
-      messages,
-    } as unknown as Anthropic.MessageCreateParamsNonStreaming)) as Anthropic.Message;
+    message = (await client.messages.create(
+      { ...baseReq, messages } as unknown as Anthropic.MessageCreateParamsNonStreaming,
+      { timeout: AGENT_TIMEOUT_MS },
+    )) as Anthropic.Message;
   }
 
   return parseResult(textOf(message), input, opts.web);
 }
 
-function parseResult(text: string, input: SommelierInput, web: boolean): SommelierResult {
-  const parsed = extractJson(text) as {
-    dish?: Partial<Record<keyof DishAnalysis, unknown>>;
-    honest_note?: string;
-    recommendations?: Array<Record<string, unknown>>;
+function buildPhoto(parsed: AiResult["photo"], hasImage: boolean): PhotoAnalysis | undefined {
+  if (!hasImage || !parsed) return undefined;
+  const detectedDish = String(parsed.detected_dish ?? "").trim();
+  if (!detectedDish) return undefined;
+  const ingredients = (parsed.ingredients ?? [])
+    .map((x) => String(x).trim())
+    .filter(Boolean)
+    .slice(0, 8);
+  return {
+    detectedDish,
+    confidence: clamp01(parsed.confidence, 0.7),
+    ingredients,
+    cuisineStyle: String(parsed.cuisine_style ?? "").trim() || "невизначена",
+    cookingMethod: String(parsed.cooking_method ?? "").trim() || "невизначений",
   };
+}
+
+function parseResult(text: string, input: SommelierInput, web: boolean): SommelierResult {
+  const json = extractJson(text);
+  const validated = aiResultSchema.safeParse(json);
+  if (!validated.success) throw new Error(`Невалідна структура відповіді AI: ${validated.error.message}`);
+  const parsed = validated.data;
 
   const dish: DishAnalysis = {
     name: String(parsed.dish?.name ?? "").trim() || input.dish.trim() || "вечеря",
@@ -212,6 +309,7 @@ function parseResult(text: string, input: SommelierInput, web: boolean): Sommeli
       servingTemp: String(r.serving_temp ?? "").trim() || (localWine ? servingTemp(localWine) : typeServing(String(r.type ?? ""))),
       decant: String(r.decant ?? "").trim() || (localWine ? decantHint(localWine) : "за смаком"),
       snack: String(r.snack ?? "").trim() || (localWine ? snackFor(localWine) : "сир або оливки"),
+      alternative: String(r.alternative ?? "").trim() || (localWine ? alternativeFor(localWine, dish) : undefined),
     });
   }
 
@@ -220,8 +318,10 @@ function parseResult(text: string, input: SommelierInput, web: boolean): Sommeli
   const honest = String(parsed.honest_note ?? "").trim() || honestNoteFor(input.dish);
   return {
     dish,
+    photo: buildPhoto(parsed.photo, !!input.image),
     recommendations: assembleTiers(recs, dish),
     honestNote: honest || undefined,
+    avoid: String(parsed.avoid ?? "").trim() || avoidFor(dish),
     sources: web
       ? ["веб-пошук: відгуки, оцінки, ціни", "власна база (~300 вин)"]
       : ["підбір Claude", "власна база (~300 вин)"],
@@ -243,7 +343,7 @@ export async function runSommelier(input: SommelierInput): Promise<SommelierResu
     try {
       return await attempt();
     } catch (e) {
-      console.warn("[sommelier] спроба не вдалась:", e);
+      console.warn("[sommelier] спроба не вдалась:", e instanceof Error ? e.message : e);
     }
   }
   return fallbackResult(input);
@@ -281,8 +381,10 @@ function fallbackResult(input: SommelierInput): SommelierResult {
     dish,
     recommendations,
     honestNote: honestNoteFor(input.dish),
+    avoid: avoidFor(dish),
     sources: ["власна база (~300 вин)"],
     engine: "fallback",
+    demo: true,
   };
 }
 
@@ -300,6 +402,7 @@ function makeRec(wine: Wine, dish: DishAnalysis): WineRec {
     servingTemp: servingTemp(wine),
     decant: decantHint(wine),
     snack: snackFor(wine),
+    alternative: alternativeFor(wine, dish),
   };
 }
 
