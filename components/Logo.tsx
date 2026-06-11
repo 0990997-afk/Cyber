@@ -1,19 +1,39 @@
 export function LogoMark({ className = "" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 64 64" className={className} fill="none" aria-hidden="true">
-      {/* чип */}
-      <rect x="7" y="7" width="50" height="50" rx="13" stroke="currentColor" strokeWidth="1.5" />
-      {/* контакти-доріжки */}
-      <path d="M7 22h-4M7 32h-4M7 42h-4M61 22h4M61 32h4M61 42h4M22 7v-4M32 7v-4M42 7v-4M22 61v4M32 61v4M42 61v4"
-        stroke="currentColor" strokeWidth="1.2" opacity="0.5" />
-      {/* келих */}
-      <path d="M25 19h14c0 7-3.2 11.5-7 11.5S25 26 25 19Z" stroke="currentColor" strokeWidth="1.5" />
-      <path d="M32 30.5V44M26.5 44h11" stroke="currentColor" strokeWidth="1.5" />
-      <circle cx="32" cy="24" r="2.4" fill="currentColor" />
-      {/* нейровузли */}
-      <circle cx="18" cy="44" r="1.8" fill="currentColor" opacity="0.7" />
-      <circle cx="46" cy="44" r="1.8" fill="currentColor" opacity="0.7" />
-      <path d="M19.6 44H26.5M37.5 44h6.9" stroke="currentColor" strokeWidth="1.1" opacity="0.45" />
+    <svg
+      viewBox="0 0 240 240"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {/* профіль голови */}
+      <path
+        d="M95 230 C80 225 72 211 70 193 C44 185 43 118 51 86 C60 48 98 29 130 38 C152 44 167 64 177 93 C181 106 186 113 192 122 C188 132 176 130 170 134 C176 142 174 149 169 153 C177 159 178 173 172 185 C161 199 142 198 133 208 C128 214 127 222 127 230"
+        strokeWidth="7"
+      />
+      {/* чип-«мозок» */}
+      <rect x="75" y="75" width="70" height="70" rx="13" strokeWidth="5" />
+      {/* контакти */}
+      <path
+        d="M75 92H57 M75 110H57 M75 128H57 M92 75V57 M110 75V57 M128 75V57 M92 145V163 M110 145V163 M128 145V163 M145 92H163 M145 110H163 M145 128H163"
+        strokeWidth="3.4"
+      />
+      <g fill="currentColor" stroke="none">
+        {/* нейровузли */}
+        <circle cx="52" cy="92" r="4.4" /><circle cx="52" cy="110" r="4.4" /><circle cx="52" cy="128" r="4.4" />
+        <circle cx="92" cy="52" r="4.4" /><circle cx="110" cy="52" r="4.4" /><circle cx="128" cy="52" r="4.4" />
+        <circle cx="92" cy="168" r="4.4" /><circle cx="110" cy="168" r="4.4" /><circle cx="128" cy="168" r="4.4" />
+        <circle cx="168" cy="92" r="4.4" /><circle cx="168" cy="110" r="4.4" /><circle cx="168" cy="128" r="4.4" />
+        {/* пляшка */}
+        <path d="M101 90h7v12c6 2 7 8 7 14v20c0 4-3 6-6 6h-9c-3 0-6-2-6-6v-20c0-6 1-12 7-14z" />
+        {/* келих */}
+        <path d="M119 104h20c0 10-6 17-10 17s-10-7-10-17z" />
+        <rect x="127" y="120" width="3" height="16" />
+        <rect x="120" y="136" width="17" height="3.4" rx="1" />
+      </g>
     </svg>
   );
 }
