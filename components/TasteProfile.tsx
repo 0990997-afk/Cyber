@@ -2,13 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { DishAnalysis } from "@/lib/types";
-
-const METRICS: { key: keyof DishAnalysis; label: string }[] = [
-  { key: "fat", label: "Жирність" },
-  { key: "intensity", label: "Інтенсивність" },
-  { key: "spice", label: "Пряність" },
-  { key: "acidity", label: "Кислотність" },
-];
+import { TASTE_METRICS } from "@/lib/types";
 
 export default function TasteProfile({ dish }: { dish: DishAnalysis }) {
   const [grown, setGrown] = useState(false);
@@ -34,7 +28,7 @@ export default function TasteProfile({ dish }: { dish: DishAnalysis }) {
       </div>
 
       <div className="mt-6 grid gap-x-8 gap-y-4 sm:grid-cols-2">
-        {METRICS.map((m, i) => {
+        {TASTE_METRICS.map((m, i) => {
           const v = dish[m.key] as number;
           return (
             <div key={m.key}>
@@ -45,7 +39,7 @@ export default function TasteProfile({ dish }: { dish: DishAnalysis }) {
               <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-cellar">
                 <div
                   className="h-full rounded-full bg-linear-to-r from-gold to-terracotta transition-[width] duration-700 ease-out"
-                  style={{ width: grown ? `${v * 10}%` : "0%", transitionDelay: `${i * 110}ms` }}
+                  style={{ width: grown ? `${v * 10}%` : "0%", transitionDelay: `${i * 90}ms` }}
                 />
               </div>
             </div>

@@ -7,6 +7,7 @@ import {
   analyzeDishLocally,
   candidatesByTier,
   matchScore,
+  honestNoteFor,
 } from "./wines";
 import { TIER_ORDER, TIER_META } from "./types";
 import type {
@@ -19,24 +20,23 @@ import type {
 
 export type { SommelierInput, SommelierResult } from "./types";
 
-// ───────────────── Пул кандидатів (із локальної бази) ─────────────────
+// ───────────────── Пул кандидатів (локальна база) ─────────────────
 
 function diversePool(perTier: number): Wine[] {
   const pool: Wine[] = [];
   for (const tier of TIER_ORDER) {
-    const seenGrapes = new Set<string>();
+    const seen = new Set<string>();
     for (const w of WINES.filter((x) => x.tier === tier)) {
-      if (seenGrapes.has(w.grape)) continue;
-      seenGrapes.add(w.grape);
+      if (seen.has(w.grape)) continue;
+      seen.add(w.grape);
       pool.push(w);
-      if (seenGrapes.size >= perTier) break;
+      if (seen.size >= perTier) break;
     }
   }
   return pool;
 }
 
 function candidatePool(input: SommelierInput): Wine[] {
-  // Текст → локальний підбір під профіль страви. Фото → широкий різноманітний пул.
   if (input.dish.trim()) {
     const dish = analyzeDishLocally(input.dish);
     const byTier = candidatesByTier(dish, 7);
@@ -46,39 +46,45 @@ function candidatePool(input: SommelierInput): Wine[] {
 }
 
 function describeWine(w: Wine): string {
-  return `${w.id} | ${w.name} | ${w.type} | ${w.grape} | ${w.region}, ${w.country} | €${w.priceEUR} | рівень:${w.tier} | тіло:${w.body} кислотність:${w.acidity} таніни:${w.tannin} солодкість:${w.sweetness} | пара: ${w.pairings.join(", ")}`;
+  return `${w.id} | ${w.name} | ${w.type} | ${w.grape} | ${w.region}, ${w.country} | €${w.priceEUR} | рівень:${w.tier} | тіло:${w.body} кисл:${w.acidity} танін:${w.tannin} солод:${w.sweetness}`;
 }
 
 // ───────────────── Промпт ─────────────────
 
-const SYSTEM_RULES = `Ти — КІБЕР-СОМЕЛЬЄ, AI-сомельє з характером. Гасло: «Алгоритм із смаком».
-Гість описує або фотографує страву — ти аналізуєш її смак і радиш рівно 3 вина: по одному на кожен ціновий рівень (budget, middle, premium). Обираєш ВИКЛЮЧНО зі списку кандидатів, який дам у запиті (за полем id).
+function systemRules(web: boolean): string {
+  return `Ти — КІБЕР-СОМЕЛЬЄ, AI-агент-сомельє з характером. Гасло: «Алгоритм із смаком».
+Гість описує або фотографує страву — ти аналізуєш смак і радиш рівно 3 вина: по одному на рівень (budget, middle, premium).
+
+${web
+      ? `ДОСТУП ДО ЗОВНІШНЬОГО СВІТУ: у тебе є інструмент web_search. ОБОВʼЯЗКОВО скористайся ним, щоб знайти РЕАЛЬНІ дані — відгуки, оцінки, типові ціни в євро та перевірені гастрономічні пари для конкретних вин. Спирайся на реальні джерела, а не лише на свою памʼять. Можеш рекомендувати будь-яке реальне вино, доступне в Україні чи Європі, навіть якщо його немає у списку кандидатів.`
+      : `Обирай зі списку кандидатів, який дам у запиті (за id), або з відомих тобі реальних вин.`}
 
 ГОЛОС БРЕНДУ:
-- Пояснюй ПРИЧИНУ пари конкретно й по-людськи: «кислотність розрізає жир», «таніни врівноважують жирність рібаю», «тіло вина тримає насичений смак». Це суть, а не снобізм.
+- Пояснюй ПРИЧИНУ пари конкретно й по-людськи: «кислотність розрізає жир», «таніни врівноважують жирність», «мінеральність підкреслює морепродукти». Це суть, а не снобізм.
 - Тепло, дотепно, коротко — як друг, що розбирається, але не випендрюється.
-- ЗАБОРОНЕНО: маркетингові слова (інноваційний, унікальний, революційний), канцелярит, порожні штампи без сенсу, лекції.
+- ЗАБОРОНЕНО: маркетингові слова (інноваційний, унікальний, революційний), канцелярит, порожні штампи.
 - Українською.
 
-АНАЛІЗ СТРАВИ (поле dish): дай назву страви та оціни 0–10: жирність (fat), інтенсивність смаку (intensity), пряність (spice), кислотність (acidity). note — один рядок про смаковий профіль.
+ЧЕСНИЙ СОМЕЛЬЄ: якщо вино — НЕ найкраща пара (фастфуд, піца, дуже гостре, надсолодке), чесно скажи це у полі honest_note і запропонуй кращу альтернативу (пиво, кола, саке). Винні варіанти все одно дай — найкращі з можливих. Якщо вино доречне — honest_note порожній рядок.
 
-ВИНА: для кожного — wine_id зі списку, match (Cyber Match Score, чесний % збігу 80–99, у трьох різний), why (1–2 речення таск-логіки пари), serving_temp (напр. «16–18 °C»), decant («відкрити за 20–30 хв» або «не потребує»), snack (закуска під вино).
+АНАЛІЗ СТРАВИ (dish): назва + оцінки 0–10: fat (жирність), acidity (кислотність), sweetness (солодкість), salt (солоність), intensity (інтенсивність), spice (пряність), minerality (мінеральність). note — рядок про профіль.
+
+ВИНА: для кожного — tier; wine_id (якщо з мого списку, інакше пропусти); name (виробник+назва+рік); type; grape; region; country; price (у форматі «€18»); match (Cyber Match Score 80–99, чесний, у трьох різний); why (1–2 речення таск-логіки); serving_temp; decant; snack.
 
 ФОРМАТ — поверни ЛИШЕ валідний JSON, без markdown:
 {
-  "dish": {"name": "...", "fat": 0, "intensity": 0, "spice": 0, "acidity": 0, "note": "..."},
+  "dish": {"name":"","fat":0,"acidity":0,"sweetness":0,"salt":0,"intensity":0,"spice":0,"minerality":0,"note":""},
+  "honest_note": "",
   "recommendations": [
-    {"tier": "budget|middle|premium", "wine_id": "...", "match": 0, "why": "...", "serving_temp": "...", "decant": "...", "snack": "..."}
+    {"tier":"budget","wine_id":"","name":"","type":"","grape":"","region":"","country":"","price":"€0","match":0,"why":"","serving_temp":"","decant":"","snack":""}
   ]
 }`;
-
-function buildSystem(): Anthropic.TextBlockParam[] {
-  return [{ type: "text", text: SYSTEM_RULES, cache_control: { type: "ephemeral" } }];
 }
 
 function buildUserContent(
   input: SommelierInput,
   pool: Wine[],
+  web: boolean,
 ): string | Anthropic.ContentBlockParam[] {
   const lines: string[] = [];
   if (input.image) lines.push("На фото — страва гостя. Визнач, що це, і проаналізуй смак.");
@@ -87,9 +93,9 @@ function buildUserContent(
   if (input.budget !== "any") {
     lines.push(`Гість орієнтується на рівень «${TIER_META[input.budget].label}», але дай по одному на кожен рівень.`);
   }
-  lines.push("\nКАНДИДАТИ (обирай лише звідси, за id):");
+  lines.push(`\n${web ? "ОРІЄНТИРИ з нашої бази (можеш замінити кращими з вебу):" : "КАНДИДАТИ (обирай за id):"}`);
   lines.push(pool.map(describeWine).join("\n"));
-  lines.push("\nДай аналіз страви та 3 вина — по одному на budget, middle, premium.");
+  lines.push("\nДай аналіз страви (7 показників) і 3 вина — по одному на budget, middle, premium.");
   const text = lines.join("\n");
 
   if (!input.image) return text;
@@ -106,7 +112,7 @@ function buildUserContent(
   ];
 }
 
-// ───────────────── Виклик Claude ─────────────────
+// ───────────────── Виклик агента ─────────────────
 
 function extractJson(text: string): unknown {
   const s = text.indexOf("{");
@@ -120,104 +126,146 @@ function clamp(v: unknown, lo: number, hi: number, def: number): number {
   return Math.max(lo, Math.min(hi, Math.round(n)));
 }
 
-async function callClaudeOnce(
-  client: Anthropic,
-  input: SommelierInput,
-  pool: Wine[],
-  rich: boolean,
-): Promise<SommelierResult> {
-  const base = {
-    model: SOMMELIER_MODEL,
-    max_tokens: 4000,
-    system: buildSystem(),
-    messages: [{ role: "user", content: buildUserContent(input, pool) }],
-  };
-  const request = rich
-    ? { ...base, thinking: { type: "adaptive" }, output_config: { effort: "medium" } }
-    : base;
-
-  const message = (await client.messages.create(
-    request as unknown as Anthropic.MessageCreateParamsNonStreaming,
-  )) as Anthropic.Message;
-
-  const text = message.content
+function textOf(message: Anthropic.Message): string {
+  return message.content
     .filter((b): b is Anthropic.TextBlock => b.type === "text")
     .map((b) => b.text)
     .join("\n");
+}
 
+async function callAgent(
+  client: Anthropic,
+  input: SommelierInput,
+  pool: Wine[],
+  opts: { web: boolean; thinking: boolean },
+): Promise<SommelierResult> {
+  const messages: unknown[] = [
+    { role: "user", content: buildUserContent(input, pool, opts.web) },
+  ];
+  const baseReq: Record<string, unknown> = {
+    model: SOMMELIER_MODEL,
+    max_tokens: 4500,
+    system: [{ type: "text", text: systemRules(opts.web), cache_control: { type: "ephemeral" } }],
+  };
+  if (opts.web) baseReq.tools = [{ type: "web_search_20260209", name: "web_search", max_uses: 3 }];
+  if (opts.thinking) {
+    baseReq.thinking = { type: "adaptive" };
+    baseReq.output_config = { effort: "medium" };
+  }
+
+  let message = (await client.messages.create({
+    ...baseReq,
+    messages,
+  } as unknown as Anthropic.MessageCreateParamsNonStreaming)) as Anthropic.Message;
+
+  // Сервер-тул може повертати pause_turn — продовжуємо цикл.
+  let guard = 0;
+  while (message.stop_reason === "pause_turn" && guard < 4) {
+    guard++;
+    messages.push({ role: "assistant", content: message.content });
+    message = (await client.messages.create({
+      ...baseReq,
+      messages,
+    } as unknown as Anthropic.MessageCreateParamsNonStreaming)) as Anthropic.Message;
+  }
+
+  return parseResult(textOf(message), input, opts.web);
+}
+
+function parseResult(text: string, input: SommelierInput, web: boolean): SommelierResult {
   const parsed = extractJson(text) as {
-    dish?: Partial<DishAnalysis>;
-    recommendations?: Array<{
-      tier?: string;
-      wine_id?: string;
-      match?: number;
-      why?: string;
-      serving_temp?: string;
-      decant?: string;
-      snack?: string;
-    }>;
+    dish?: Partial<Record<keyof DishAnalysis, unknown>>;
+    honest_note?: string;
+    recommendations?: Array<Record<string, unknown>>;
   };
 
   const dish: DishAnalysis = {
-    name: (parsed.dish?.name ?? "").toString().trim() || input.dish.trim() || "вечеря",
+    name: String(parsed.dish?.name ?? "").trim() || input.dish.trim() || "вечеря",
     fat: clamp(parsed.dish?.fat, 0, 10, 5),
+    acidity: clamp(parsed.dish?.acidity, 0, 10, 4),
+    sweetness: clamp(parsed.dish?.sweetness, 0, 10, 2),
+    salt: clamp(parsed.dish?.salt, 0, 10, 4),
     intensity: clamp(parsed.dish?.intensity, 0, 10, 5),
     spice: clamp(parsed.dish?.spice, 0, 10, 3),
-    acidity: clamp(parsed.dish?.acidity, 0, 10, 4),
-    note: (parsed.dish?.note ?? "").toString().trim() || analyzeDishLocally(input.dish).note,
+    minerality: clamp(parsed.dish?.minerality, 0, 10, 4),
+    note: String(parsed.dish?.note ?? "").trim() || analyzeDishLocally(input.dish).note,
   };
 
-  const poolIds = new Set(pool.map((w) => w.id));
   const used = new Set<string>();
   const recs: WineRec[] = [];
   for (const r of parsed.recommendations ?? []) {
-    const wine = r.wine_id ? getWineById(r.wine_id) : undefined;
-    if (!wine || !poolIds.has(wine.id) || used.has(wine.id)) continue;
-    used.add(wine.id);
+    const localWine = typeof r.wine_id === "string" ? getWineById(r.wine_id) : undefined;
+    const name = (localWine?.name ?? String(r.name ?? "")).trim();
+    if (!name || used.has(name)) continue;
+    used.add(name);
+    const tier = (localWine?.tier ?? (r.tier as WineRec["tier"])) || "middle";
     recs.push({
-      tier: wine.tier,
-      wine,
-      match: clamp(r.match, 80, 99, matchScore(wine, dish)),
-      why: (r.why ?? "").trim() || fallbackWhy(wine, dish),
-      servingTemp: (r.serving_temp ?? "").trim() || servingTemp(wine),
-      decant: (r.decant ?? "").trim() || decantHint(wine),
-      snack: (r.snack ?? "").trim() || snackFor(wine),
+      tier,
+      name,
+      type: (localWine?.type ?? String(r.type ?? "вино")).trim(),
+      grape: localWine?.grape ?? (r.grape ? String(r.grape) : undefined),
+      region: localWine?.region ?? (r.region ? String(r.region) : undefined),
+      country: localWine?.country ?? (r.country ? String(r.country) : undefined),
+      price: localWine ? `€${localWine.priceEUR}` : String(r.price ?? "—"),
+      match: clamp(r.match, 80, 99, localWine ? matchScore(localWine, dish) : 88),
+      why: String(r.why ?? "").trim() || (localWine ? fallbackWhy(localWine, dish) : "Гарна пара до вашої страви."),
+      servingTemp: String(r.serving_temp ?? "").trim() || (localWine ? servingTemp(localWine) : typeServing(String(r.type ?? ""))),
+      decant: String(r.decant ?? "").trim() || (localWine ? decantHint(localWine) : "за смаком"),
+      snack: String(r.snack ?? "").trim() || (localWine ? snackFor(localWine) : "сир або оливки"),
     });
   }
 
   if (recs.length === 0) throw new Error("Жодної валідної рекомендації");
-  return { dish, recommendations: assembleTiers(recs, dish), engine: "claude" };
+
+  const honest = String(parsed.honest_note ?? "").trim() || honestNoteFor(input.dish);
+  return {
+    dish,
+    recommendations: assembleTiers(recs, dish),
+    honestNote: honest || undefined,
+    sources: web
+      ? ["веб-пошук: відгуки, оцінки, ціни", "власна база (~300 вин)"]
+      : ["підбір Claude", "власна база (~300 вин)"],
+    engine: web ? "claude+web" : "claude",
+  };
 }
 
 export async function runSommelier(input: SommelierInput): Promise<SommelierResult> {
   const client = getAnthropic();
   const pool = candidatePool(input);
   if (!client) return fallbackResult(input);
-  try {
+
+  const attempts: (() => Promise<SommelierResult>)[] = [
+    () => callAgent(client, input, pool, { web: true, thinking: true }),
+    () => callAgent(client, input, pool, { web: false, thinking: true }),
+    () => callAgent(client, input, pool, { web: false, thinking: false }),
+  ];
+  for (const attempt of attempts) {
     try {
-      return await callClaudeOnce(client, input, pool, true);
+      return await attempt();
     } catch (e) {
-      console.warn("[sommelier] rich fail, minimal retry:", e);
-      return await callClaudeOnce(client, input, pool, false);
+      console.warn("[sommelier] спроба не вдалась:", e);
     }
-  } catch (err) {
-    console.error("[sommelier] Claude недоступний — fallback:", err);
-    return fallbackResult(input);
   }
+  return fallbackResult(input);
 }
 
-// ───────────────── Збирання 3 рівнів (гарантовано) ─────────────────
+// ───────────────── Збирання / fallback ─────────────────
 
 function assembleTiers(recs: WineRec[], dish: DishAnalysis): WineRec[] {
   const byTier = candidatesByTier(dish, 1);
-  const used = new Set(recs.map((r) => r.wine.id));
+  const usedNames = new Set(recs.map((r) => r.name));
   return TIER_ORDER.map((tier) => {
     const existing = recs.find((r) => r.tier === tier);
     if (existing) return existing;
-    // добиваємо локально, якщо Claude пропустив рівень
-    const fill = (byTier[tier] ?? []).find((w) => !used.has(w.id)) ?? byTier[tier]?.[0];
-    const wine = fill ?? WINES.find((w) => w.tier === tier)!;
-    used.add(wine.id);
+    const wine = (byTier[tier] ?? [])[0] ?? WINES.find((w) => w.tier === tier)!;
+    if (usedNames.has(wine.name)) {
+      const alt = WINES.filter((w) => w.tier === tier && !usedNames.has(w.name))[0];
+      if (alt) {
+        usedNames.add(alt.name);
+        return makeRec(alt, dish);
+      }
+    }
+    usedNames.add(wine.name);
     return makeRec(wine, dish);
   });
 }
@@ -229,13 +277,24 @@ function fallbackResult(input: SommelierInput): SommelierResult {
     const wine = (byTier[tier] ?? [])[0] ?? WINES.find((w) => w.tier === tier)!;
     return makeRec(wine, dish);
   });
-  return { dish, recommendations, engine: "fallback" };
+  return {
+    dish,
+    recommendations,
+    honestNote: honestNoteFor(input.dish),
+    sources: ["власна база (~300 вин)"],
+    engine: "fallback",
+  };
 }
 
 function makeRec(wine: Wine, dish: DishAnalysis): WineRec {
   return {
     tier: wine.tier,
-    wine,
+    name: wine.name,
+    type: wine.type,
+    grape: wine.grape,
+    region: wine.region,
+    country: wine.country,
+    price: `€${wine.priceEUR}`,
     match: matchScore(wine, dish),
     why: fallbackWhy(wine, dish),
     servingTemp: servingTemp(wine),
@@ -244,13 +303,20 @@ function makeRec(wine: Wine, dish: DishAnalysis): WineRec {
   };
 }
 
-// ───────────────── Подача / закуска / пояснення (локально) ─────────────────
+// ───────────────── Подача / закуска / пояснення ─────────────────
 
 function servingTemp(w: Wine): string {
   if (w.type.includes("ігристе")) return "6–8 °C";
   if (w.type.includes("десертне")) return "8–10 °C";
-  if (w.tannin === 0) return w.body >= 7 ? "10–12 °C" : "8–10 °C"; // білі/рожеві/оранж
-  return w.body <= 5 ? "13–15 °C" : "16–18 °C"; // червоні
+  if (w.tannin === 0) return w.body >= 7 ? "10–12 °C" : "8–10 °C";
+  return w.body <= 5 ? "13–15 °C" : "16–18 °C";
+}
+
+function typeServing(type: string): string {
+  const t = type.toLowerCase();
+  if (t.includes("ігрист") || t.includes("шампан")) return "6–8 °C";
+  if (t.includes("червон")) return "16–18 °C";
+  return "8–10 °C";
 }
 
 function decantHint(w: Wine): string {
@@ -271,6 +337,8 @@ function fallbackWhy(w: Wine, dish: DishAnalysis): string {
     return `Жир важкий, а таніни ${w.grape} його розрізають — після кожного шматка смак знову свіжий.`;
   if (dish.fat >= 6 && w.acidity >= 7)
     return `Кислотність ${w.grape} розрізає жир страви, тож смак лишається легким до останнього шматка.`;
+  if (dish.minerality >= 6 && w.acidity >= 7)
+    return `Мінеральність страви підхоплює свіже кисле ${w.grape} — морська чистота смаку без важкості.`;
   if (dish.intensity >= 7)
     return `Страва насичена — повнотіле ${w.grape} тримає її смак і не губиться поруч.`;
   return `${w.grape} збалансоване й гнучке — підтримує смак страви, не перебиваючи його.`;

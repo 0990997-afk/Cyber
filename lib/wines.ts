@@ -173,6 +173,9 @@ interface DishTemplate {
   spice: number;
   acidity: number;
   note: string;
+  sweetness?: number;
+  salt?: number;
+  minerality?: number;
 }
 
 const DISH_TEMPLATES: DishTemplate[] = [
@@ -202,15 +205,45 @@ const DEFAULT_DISH: DishTemplate = {
   note: "Збалансована страва — підійде універсальне вино.",
 };
 
+const HONEST_FLAGS: { match: string[]; note: string }[] = [
+  { match: ["піца", "pizza", "пепероні"], note: "Чесно: до піци вино — не обовʼязкове. Холодна кола або IPA зайдуть не гірше. Але якщо хочеться саме вина — ось гідні варіанти." },
+  { match: ["бургер", "burger", "фастфуд", "хот-дог", "наггетс", "фрі"], note: "Чесно: фастфуд і вино — не ідеальна пара. Крафтове пиво чи кола підійдуть краще. Якщо все ж вино — ось що візьме на себе жир." },
+  { match: ["суші", "роли", "sushi", "васабі"], note: "До суші вино працює, але охолоджене саке чи легке пиво — теж сильний варіант. Серед вин — ось найкращі." },
+  { match: ["дуже гостр", "пекуч", "vindaloo", "том ям"], note: "Дуже гостре краще гасити лагером або лассі. Вино — на свій страх; якщо так, бери ароматне напівсухе." },
+];
+
+export function honestNoteFor(dish: string): string | undefined {
+  const d = dish.toLowerCase();
+  return HONEST_FLAGS.find((f) => f.match.some((m) => d.includes(m)))?.note;
+}
+
+function deriveExtra(
+  dish: string,
+  t: DishTemplate,
+): { sweetness: number; salt: number; minerality: number } {
+  const d = dish.toLowerCase();
+  let sweetness = t.sweetness ?? 2;
+  let salt = t.salt ?? 4;
+  let minerality = t.minerality ?? 4;
+  if (/десерт|торт|шоколад|тірамісу|cake|солодк|морозиво/.test(d)) sweetness = 9;
+  if (/устриц|мідії|морепродукт|oyster|ікр|анчоус|хамон|пармезан|\bсир\b|солон|фета|бринз/.test(d)) salt = 8;
+  if (/устриц|мідії|суші|sushi|мінерал|гребінц|морепродукт|біла риба|форель/.test(d)) minerality = 8;
+  return { sweetness, salt, minerality };
+}
+
 export function analyzeDishLocally(dish: string): DishAnalysis {
   const d = dish.toLowerCase();
   const t = DISH_TEMPLATES.find((x) => x.match.some((m) => d.includes(m))) ?? DEFAULT_DISH;
+  const extra = deriveExtra(dish, t);
   return {
     name: dish.trim() || "вечеря",
     fat: t.fat,
+    acidity: t.acidity,
+    sweetness: extra.sweetness,
+    salt: extra.salt,
     intensity: t.intensity,
     spice: t.spice,
-    acidity: t.acidity,
+    minerality: extra.minerality,
     note: t.note,
   };
 }

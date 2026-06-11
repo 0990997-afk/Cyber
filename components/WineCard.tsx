@@ -45,11 +45,12 @@ function Detail({ label, value }: { label: string; value: string }) {
 export default function WineCard({ rec, index }: { rec: WineRec; index: number }) {
   const [copied, setCopied] = useState(false);
   const [reserved, setReserved] = useState(false);
-  const { wine, why, match, servingTemp, decant, snack, tier } = rec;
+  const { name, type, region, country, price, why, match, servingTemp, decant, snack, tier } = rec;
   const meta = TIER_META[tier];
+  const sub = [type, [region, country].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
 
   async function copy() {
-    const text = `${wine.name} · ${wine.type} · €${wine.priceEUR} · Cyber Match ${match}% — ${why}`;
+    const text = `${name} · ${type} · ${price} · Cyber Match ${match}% — ${why}`;
     try {
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(text);
@@ -76,15 +77,9 @@ export default function WineCard({ rec, index }: { rec: WineRec; index: number }
         <MatchGauge value={match} />
       </div>
 
-      <h3 className="mt-5 font-ui text-xl font-bold leading-tight text-parchment">
-        {wine.name}
-      </h3>
-      <p className="mt-1 font-mono text-xs text-ash">
-        {wine.type} · {wine.region}, {wine.country}
-      </p>
-      <p className="mt-3 font-mono text-2xl font-bold text-copper-gradient">
-        €{wine.priceEUR}
-      </p>
+      <h3 className="mt-5 font-ui text-xl font-bold leading-tight text-parchment">{name}</h3>
+      <p className="mt-1 font-mono text-xs text-ash">{sub}</p>
+      <p className="mt-3 font-mono text-2xl font-bold text-copper-gradient">{price}</p>
 
       <p className="mt-4 flex-1 leading-relaxed text-parchment/90">{why}</p>
 

@@ -1,54 +1,64 @@
-// Спільні типи КІБЕР-СОМЕЛЬЄ. Без імпортів server-only — безпечно для клієнта.
+// Спільні типи КІБЕР-СОМЕЛЬЄ 2.0. Без server-only — безпечно для клієнта.
 
 export type Tier = "budget" | "middle" | "premium";
 
 export interface Wine {
   id: string;
-  name: string; // виробник + назва + рік
-  type: string; // напр. «червоне сухе»
+  name: string;
+  type: string;
   grape: string;
   country: string;
   region: string;
   year: number;
   priceEUR: number;
   tier: Tier;
-  // Смаковий профіль вина (1–10)
   body: number;
   acidity: number;
-  tannin: number; // 0 для білих/ігристих
+  tannin: number;
   sweetness: number;
-  pairings: string[]; // ключові гастро-категорії
+  pairings: string[];
 }
 
-// Смаковий профіль страви (0–10) — серце «екрана аналізу».
+// 7-вимірний смаковий профіль страви (0–10).
 export interface DishAnalysis {
   name: string;
   fat: number; // жирність
-  intensity: number; // інтенсивність смаку
-  spice: number; // пряність
   acidity: number; // кислотність
-  note: string; // короткий профіль людською мовою
+  sweetness: number; // солодкість
+  salt: number; // солоність
+  intensity: number; // інтенсивність
+  spice: number; // пряність
+  minerality: number; // мінеральність
+  note: string;
 }
 
+// Рекомендація — пласка (підтримує і локальні, і знайдені у вебі вина).
 export interface WineRec {
   tier: Tier;
-  wine: Wine;
-  match: number; // Cyber Match Score, 80–99
-  why: string; // пояснення тоном друга
-  servingTemp: string; // «16–17 °C»
-  decant: string; // «відкрити за 20 хв» / «не потребує»
-  snack: string; // закуска
+  name: string;
+  type: string;
+  grape?: string;
+  region?: string;
+  country?: string;
+  price: string; // напр. «€18»
+  match: number; // Cyber Match Score 80–99
+  why: string;
+  servingTemp: string;
+  decant: string;
+  snack: string;
 }
 
 export interface SommelierResult {
   dish: DishAnalysis;
-  recommendations: WineRec[]; // порядок: budget, middle, premium
-  engine: "claude" | "fallback";
+  recommendations: WineRec[];
+  honestNote?: string; // чесний вердикт, якщо вино — не найкраща пара
+  sources: string[]; // звідки дані (веб-пошук / локальна база)
+  engine: "claude" | "claude+web" | "fallback";
 }
 
 export interface SommelierImage {
   mediaType: string;
-  data: string; // base64 без префікса
+  data: string;
 }
 
 export interface SommelierInput {
@@ -57,6 +67,16 @@ export interface SommelierInput {
   budget: "any" | Tier;
   image?: SommelierImage;
 }
+
+export const TASTE_METRICS: { key: keyof DishAnalysis; label: string }[] = [
+  { key: "fat", label: "Жирність" },
+  { key: "intensity", label: "Інтенсивність" },
+  { key: "acidity", label: "Кислотність" },
+  { key: "spice", label: "Пряність" },
+  { key: "sweetness", label: "Солодкість" },
+  { key: "salt", label: "Солоність" },
+  { key: "minerality", label: "Мінеральність" },
+];
 
 export const TIER_META: Record<
   Tier,
