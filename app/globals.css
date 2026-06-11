@@ -2,9 +2,9 @@
 
 @theme {
   --color-cellar: #120805; /* темний льох — фон */
-  --color-cellar-2: #1b0d07; /* трохи світліший фон */
-  --color-barrel: #2a1508; /* дубова бочка — картки/секції */
-  --color-barrel-2: #34190a;
+  --color-cellar-2: #15100a; /* трохи світліший фон */
+  --color-barrel: #1a120c; /* картка — near-black, як у брендбуці */
+  --color-barrel-2: #221710;
   --color-parchment: #f8f6f1; /* пергамент — основний текст */
   --color-ash: #9a9890; /* попіл — другорядний текст */
   --color-ruby: #6b0f1a; /* рубін — акценти вина */
@@ -27,12 +27,11 @@ body {
   font-family: var(--font-ui), system-ui, sans-serif;
 }
 
-/* Атмосфера винного льоху: тепле підсвічування зверху + глибина */
+/* Плаский near-black як у брендбуці + ледь тепле підсвічування зверху */
 .cellar-bg {
   background:
-    radial-gradient(1200px 640px at 50% -10%, rgba(200, 121, 58, 0.14), transparent 60%),
-    radial-gradient(900px 700px at 84% 6%, rgba(107, 15, 26, 0.22), transparent 64%),
-    linear-gradient(180deg, #160a05 0%, #120805 55%, #0c0503 100%);
+    radial-gradient(1100px 520px at 50% -14%, rgba(200, 121, 58, 0.07), transparent 62%),
+    linear-gradient(180deg, #0f0805 0%, #0b0503 60%, #070302 100%);
   background-attachment: fixed;
 }
 
