@@ -1,131 +1,114 @@
 "use client";
 
 import { useState } from "react";
-import type { Recommendation } from "@/lib/types";
-import { formatPrice, colorAccent, TIER_META } from "@/lib/wines";
+import type { WineRec } from "@/lib/types";
+import { TIER_META } from "@/lib/types";
 
-function Bottle({ accent }: { accent: string }) {
+function MatchGauge({ value }: { value: number }) {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  const off = c * (1 - value / 100);
   return (
-    <svg
-      viewBox="0 0 64 168"
-      className="h-32 w-auto drop-shadow-[0_10px_24px_rgba(0,0,0,0.45)]"
-      aria-hidden="true"
-    >
-      {/* шийка */}
-      <rect x="27" y="6" width="10" height="34" rx="3" fill="#1c060d" />
-      <rect x="26" y="6" width="12" height="9" rx="3" fill={accent} />
-      {/* тіло */}
-      <path
-        d="M22 40c0-3 2-5 5-6 3-1 5-3 5-6v0c0 3 2 5 5 6 3 1 5 3 5 6v110c0 6-4 10-10 10h0c-6 0-10-4-10-10V40z"
-        fill="#1c060d"
-        stroke="rgba(201,162,75,0.35)"
-        strokeWidth="1"
-      />
-      {/* вино всередині */}
-      <path
-        d="M24 92c0 0 0 56 0 56 0 5 3 8 8 8s8-3 8-8c0 0 0-56 0-56z"
-        fill={accent}
-        opacity="0.85"
-      />
-      {/* етикетка */}
-      <rect
-        x="23"
-        y="104"
-        width="18"
-        height="34"
-        rx="2"
-        fill="#f5efe6"
-        opacity="0.92"
-      />
-      <rect x="26" y="110" width="12" height="2" rx="1" fill="#7e1f2b" />
-      <rect x="26" y="116" width="12" height="1.5" rx="0.75" fill="#2a0a14" opacity="0.5" />
-      <rect x="26" y="120" width="9" height="1.5" rx="0.75" fill="#2a0a14" opacity="0.5" />
-    </svg>
+    <div className="relative h-[72px] w-[72px] shrink-0">
+      <svg viewBox="0 0 64 64" className="h-full w-full -rotate-90">
+        <circle cx="32" cy="32" r={r} stroke="rgba(200,121,58,0.16)" strokeWidth="5" fill="none" />
+        <circle
+          cx="32"
+          cy="32"
+          r={r}
+          className="text-terracotta"
+          stroke="currentColor"
+          strokeWidth="5"
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={off}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <span className="font-mono text-lg font-bold leading-none text-parchment">{value}</span>
+        <span className="mt-0.5 font-mono text-[8px] tracking-[0.15em] text-ash">MATCH</span>
+      </div>
+    </div>
   );
 }
 
-export default function WineCard({
-  rec,
-  index,
-}: {
-  rec: Recommendation;
-  index: number;
-}) {
+function Detail({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-cellar/50 px-3 py-2">
+      <div className="font-mono text-[10px] tracking-[0.12em] text-ash">{label}</div>
+      <div className="mt-0.5 text-sm text-parchment">{value}</div>
+    </div>
+  );
+}
+
+export default function WineCard({ rec, index }: { rec: WineRec; index: number }) {
+  const [copied, setCopied] = useState(false);
   const [reserved, setReserved] = useState(false);
-  const { wine, why, appetizer, matchScore, tier } = rec;
-  const accent = colorAccent(wine.color);
+  const { wine, why, match, servingTemp, decant, snack, tier } = rec;
   const meta = TIER_META[tier];
+
+  async function copy() {
+    const text = `${wine.name} · ${wine.type} · €${wine.priceEUR} · Cyber Match ${match}% — ${why}`;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }
+    } catch {
+      // Не падаємо через помилку буфера обміну.
+    }
+  }
 
   return (
     <article
-      className="animate-rise group relative flex flex-col rounded-2xl border border-line bg-bg-soft/70 p-6 backdrop-blur-sm transition-all duration-300 hover:-translate-y-1 hover:border-gold/50 hover:bg-bg-elevated/70"
+      className="animate-rise flex flex-col rounded-2xl border border-line bg-barrel/45 p-6 ring-copper transition-all duration-300 hover:-translate-y-1 hover:border-terracotta/40"
       style={{ animationDelay: `${index * 90}ms` }}
     >
-      {/* рівень + збіг */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="font-display text-xs uppercase tracking-[0.22em] text-gold">
-            {meta.label}
+          <p className="font-mono text-[11px] tracking-[0.2em] text-terracotta">
+            {meta.medal} {meta.label.toUpperCase()}
           </p>
-          <p className="mt-0.5 text-[11px] text-muted">{meta.tagline}</p>
+          <p className="mt-1 text-[11px] text-ash">{meta.tagline}</p>
         </div>
-        <span className="shrink-0 rounded-full border border-gold/40 bg-gold/10 px-2.5 py-1 text-[11px] font-medium text-gold-soft">
-          Збіг {matchScore}%
-        </span>
+        <MatchGauge value={match} />
       </div>
 
-      <div className="mt-5 flex items-end gap-4">
-        <Bottle accent={accent} />
-        <div className="min-w-0 flex-1 pb-1">
-          <h3 className="font-display text-2xl leading-tight text-cream">
-            {wine.name}
-          </h3>
-          <p className="mt-1 text-sm text-muted">
-            {wine.grape} · {wine.region}
-          </p>
-          <p className="mt-3 font-display text-3xl text-gold-gradient">
-            {formatPrice(wine.priceUAH)}
-          </p>
-        </div>
+      <h3 className="mt-5 font-ui text-xl font-bold leading-tight text-parchment">
+        {wine.name}
+      </h3>
+      <p className="mt-1 font-mono text-xs text-ash">
+        {wine.type} · {wine.region}, {wine.country}
+      </p>
+      <p className="mt-3 font-mono text-2xl font-bold text-copper-gradient">
+        €{wine.priceEUR}
+      </p>
+
+      <p className="mt-4 flex-1 leading-relaxed text-parchment/90">{why}</p>
+
+      <div className="mt-5 grid grid-cols-3 gap-2">
+        <Detail label="ПОДАЧА" value={servingTemp} />
+        <Detail label="ДЕКАНТ" value={decant} />
+        <Detail label="ЗАКУСКА" value={snack} />
       </div>
 
-      <div className="my-5 hairline" />
-
-      <div className="space-y-4 text-sm">
-        <div>
-          <p className="mb-1 text-[11px] uppercase tracking-[0.18em] text-gold/80">
-            Чому саме це
-          </p>
-          <p className="leading-relaxed text-cream/90">{why}</p>
-        </div>
-        <div className="flex gap-2 rounded-xl bg-bg/50 p-3">
-          <span className="mt-0.5 text-gold">◆</span>
-          <p className="leading-relaxed text-muted">
-            <span className="text-cream/80">До вина: </span>
-            {appetizer}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-6 flex gap-2">
+      <div className="mt-5 flex gap-2">
         <button
           onClick={() => setReserved(true)}
-          className="flex-1 rounded-xl bg-gold px-4 py-2.5 text-sm font-semibold text-bg transition-colors hover:bg-gold-soft"
+          className="flex-1 rounded-xl bg-terracotta px-4 py-2.5 text-sm font-bold text-cellar transition hover:brightness-110"
         >
           {reserved ? "✓ Заброньовано" : "Купити"}
         </button>
         <button
-          onClick={() => setReserved(true)}
-          className="rounded-xl border border-line px-4 py-2.5 text-sm font-medium text-cream transition-colors hover:border-gold/50 hover:text-gold"
+          onClick={copy}
+          className="rounded-xl border border-line px-4 py-2.5 text-sm text-parchment transition hover:border-terracotta/50 hover:text-terracotta"
+          aria-label="Скопіювати"
         >
-          Забронювати
+          {copied ? "✓" : "⧉"}
         </button>
       </div>
-      {reserved && (
-        <p className="mt-3 text-center text-xs text-gold-soft">
-          Відкладено для вас у «Терасі» — заберіть зручного дня.
-        </p>
-      )}
     </article>
   );
 }

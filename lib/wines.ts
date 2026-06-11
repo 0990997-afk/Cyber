@@ -1,664 +1,259 @@
-// Каталог винотеки «Тераса».
-// AI-сомельє рекомендує вина ВИКЛЮЧНО з цього каталогу (grounding) —
-// це робить підбір «продаваним»: за кожною рекомендацією стоїть конкретна
-// пляшка з ціною. Той самий каталог використовує детермінований fallback,
-// якщо живий Claude недоступний.
+// Локальна база вин КІБЕР-СОМЕЛЬЄ.
+// Генерується детерміновано з архетипів сортів — ~300 позицій із повним
+// смаковим профілем (body/acidity/tannin/sweetness), €-ціною та рівнем.
+// Підбір вина відбувається ВИКЛЮЧНО по цій базі (без зовнішніх API).
 
-export type WineColor = "червоне" | "біле" | "розе" | "ігристе" | "оранж";
-export type WineTier = "budget" | "middle" | "premium";
-export type WineBody = "легке" | "середнє" | "повне";
-export type WineSweetness =
-  | "сухе"
-  | "напівсухе"
-  | "напівсолодке"
-  | "брют";
+import type { Tier, Wine, DishAnalysis } from "./types";
+import { TIER_ORDER } from "./types";
 
-export interface Wine {
-  id: string;
-  name: string;
-  color: WineColor;
+interface Archetype {
   grape: string;
-  country: string;
-  region: string;
-  priceUAH: number;
-  tier: WineTier;
-  body: WineBody;
-  sweetness: WineSweetness;
-  abv: number;
-  tasteNotes: string[];
-  /** Ключові гастро-пари — і для показу, і для скорингу у fallback. */
+  typeLabel: string;
+  color: "red" | "white" | "rose" | "sparkling" | "orange" | "dessert";
+  body: number;
+  acidity: number;
+  tannin: number;
+  sweetness: number;
+  basePrice: number; // €, базова «класична» ціна
+  regions: { country: string; region: string; mult: number }[];
   pairings: string[];
 }
 
-export const TIER_META: Record<
-  WineTier,
-  { label: string; tagline: string; range: string }
-> = {
-  budget: {
-    label: "Бюджетно",
-    tagline: "Впевнений вибір без переплати",
-    range: "180–350 ₴",
-  },
-  middle: {
-    label: "Золота середина",
-    tagline: "Найкраще співвідношення смаку й ціни",
-    range: "350–850 ₴",
-  },
-  premium: {
-    label: "Здивувати гостей",
-    tagline: "Коли вечір має запам’ятатися",
-    range: "850–3000 ₴",
-  },
-};
-
-export const TIER_ORDER: WineTier[] = ["budget", "middle", "premium"];
-
-export const WINES: Wine[] = [
-  // ───────────────── BUDGET (180–350 ₴) ─────────────────
-  {
-    id: "prosecco-terra",
-    name: "Terra Prosecco DOC",
-    color: "ігристе",
-    grape: "Glera",
-    country: "Італія",
-    region: "Венето",
-    priceUAH: 329,
-    tier: "budget",
-    body: "легке",
-    sweetness: "брют",
-    abv: 11,
-    tasteNotes: ["зелене яблуко", "груша", "біла квітка"],
-    pairings: ["аперитив", "легкі закуски", "суші", "салат", "морепродукти"],
-  },
-  {
-    id: "pinot-grigio-veneto",
-    name: "Pinot Grigio delle Venezie",
-    color: "біле",
-    grape: "Pinot Grigio",
-    country: "Італія",
-    region: "Венето",
-    priceUAH: 249,
-    tier: "budget",
-    body: "легке",
-    sweetness: "сухе",
-    abv: 12,
-    tasteNotes: ["цитрус", "груша", "мінеральність"],
-    pairings: ["риба", "морепродукти", "паста", "салат", "курка"],
-  },
-  {
-    id: "sauvignon-chile",
-    name: "Reserva Sauvignon Blanc",
-    color: "біле",
-    grape: "Sauvignon Blanc",
-    country: "Чилі",
-    region: "Долина Касабланка",
-    priceUAH: 279,
-    tier: "budget",
-    body: "легке",
-    sweetness: "сухе",
-    abv: 12.5,
-    tasteNotes: ["аґрус", "лайм", "свіжа трава"],
-    pairings: ["риба", "козячий сир", "салат", "овочі", "морепродукти"],
-  },
-  {
-    id: "cab-sauv-chile",
-    name: "Reserva Cabernet Sauvignon",
-    color: "червоне",
-    grape: "Cabernet Sauvignon",
-    country: "Чилі",
-    region: "Майпо",
-    priceUAH: 289,
-    tier: "budget",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 13.5,
-    tasteNotes: ["чорна смородина", "слива", "какао"],
-    pairings: ["стейк", "бургер", "гриль", "тверді сири", "м'ясо"],
-  },
-  {
-    id: "merlot-terra",
-    name: "Terra Merlot",
-    color: "червоне",
-    grape: "Merlot",
-    country: "Чилі",
-    region: "Центральна долина",
-    priceUAH: 259,
-    tier: "budget",
-    body: "середнє",
-    sweetness: "сухе",
-    abv: 13,
-    tasteNotes: ["слива", "вишня", "ваніль"],
-    pairings: ["курка", "свинина", "паста", "піца", "м'ясо"],
-  },
-  {
-    id: "rkatsiteli",
-    name: "Ркацителі Кахеті",
-    color: "біле",
-    grape: "Rkatsiteli",
-    country: "Грузія",
-    region: "Кахеті",
-    priceUAH: 239,
-    tier: "budget",
-    body: "середнє",
-    sweetness: "сухе",
-    abv: 12,
-    tasteNotes: ["айва", "яблуко", "польові квіти"],
-    pairings: ["курка", "овочі", "сир", "хачапурі", "грузинська кухня"],
-  },
-  {
-    id: "telti-kuruk",
-    name: "Тельті-Курук",
-    color: "біле",
-    grape: "Telti-Kuruk",
-    country: "Україна",
-    region: "Одещина",
-    priceUAH: 299,
-    tier: "budget",
-    body: "легке",
-    sweetness: "сухе",
-    abv: 12,
-    tasteNotes: ["цитрус", "груша", "морський бриз"],
-    pairings: ["риба", "устриці", "морепродукти", "салат"],
-  },
-  {
-    id: "zweigelt",
-    name: "Zweigelt",
-    color: "червоне",
-    grape: "Zweigelt",
-    country: "Австрія",
-    region: "Бургенланд",
-    priceUAH: 319,
-    tier: "budget",
-    body: "легке",
-    sweetness: "сухе",
-    abv: 12.5,
-    tasteNotes: ["вишня", "малина", "спеції"],
-    pairings: ["ковбаски", "курка", "паста", "гриль", "піца"],
-  },
-  {
-    id: "rose-provence-budget",
-    name: "Rosé di Provenza",
-    color: "розе",
-    grape: "Grenache / Cinsault",
-    country: "Франція",
-    region: "Прованс",
-    priceUAH: 339,
-    tier: "budget",
-    body: "легке",
-    sweetness: "сухе",
-    abv: 12.5,
-    tasteNotes: ["полуниця", "персик", "грейпфрут"],
-    pairings: ["салат", "риба", "сир", "аперитив", "овочі"],
-  },
-
-  // ───────────────── MIDDLE (350–850 ₴) ─────────────────
-  {
-    id: "chianti-classico",
-    name: "Chianti Classico DOCG",
-    color: "червоне",
-    grape: "Sangiovese",
-    country: "Італія",
-    region: "Тоскана",
-    priceUAH: 590,
-    tier: "middle",
-    body: "середнє",
-    sweetness: "сухе",
-    abv: 13.5,
-    tasteNotes: ["вишня", "сушені трави", "шкіра"],
-    pairings: ["паста", "піца", "томатний соус", "стейк", "м'ясо"],
-  },
-  {
-    id: "rioja-crianza",
-    name: "Rioja Crianza",
-    color: "червоне",
-    grape: "Tempranillo",
-    country: "Іспанія",
-    region: "Ріоха",
-    priceUAH: 520,
-    tier: "middle",
-    body: "середнє",
-    sweetness: "сухе",
-    abv: 14,
-    tasteNotes: ["червоні ягоди", "ваніль", "тютюн"],
-    pairings: ["ягня", "тапас", "хамон", "гриль", "м'ясо"],
-  },
-  {
-    id: "malbec-mendoza",
-    name: "Malbec Mendoza",
-    color: "червоне",
-    grape: "Malbec",
-    country: "Аргентина",
-    region: "Мендоса",
-    priceUAH: 560,
-    tier: "middle",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 14,
-    tasteNotes: ["ожина", "слива", "темний шоколад"],
-    pairings: ["стейк", "ребра", "гриль", "бургер", "м'ясо"],
-  },
-  {
-    id: "cdr-syrah",
-    name: "Côtes du Rhône",
-    color: "червоне",
-    grape: "Syrah / Grenache",
-    country: "Франція",
-    region: "Долина Рони",
-    priceUAH: 480,
-    tier: "middle",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 14,
-    tasteNotes: ["чорний перець", "ожина", "прованські трави"],
-    pairings: ["качка", "ягня", "дичина", "гриль", "м'ясо"],
-  },
-  {
-    id: "chablis",
-    name: "Chablis",
-    color: "біле",
-    grape: "Chardonnay",
-    country: "Франція",
-    region: "Бургундія",
-    priceUAH: 790,
-    tier: "middle",
-    body: "середнє",
-    sweetness: "сухе",
-    abv: 12.5,
-    tasteNotes: ["лимон", "устрична мінеральність", "біла квітка"],
-    pairings: ["устриці", "риба", "морепродукти", "курка"],
-  },
-  {
-    id: "riesling-mosel",
-    name: "Riesling Kabinett",
-    color: "біле",
-    grape: "Riesling",
-    country: "Німеччина",
-    region: "Мозель",
-    priceUAH: 610,
-    tier: "middle",
-    body: "легке",
-    sweetness: "напівсухе",
-    abv: 9.5,
-    tasteNotes: ["персик", "лайм", "мінеральність"],
-    pairings: ["азійська кухня", "гостре", "свинина", "тайська кухня", "качка"],
-  },
-  {
-    id: "albarino",
-    name: "Albariño Rías Baixas",
-    color: "біле",
-    grape: "Albariño",
-    country: "Іспанія",
-    region: "Галісія",
-    priceUAH: 540,
-    tier: "middle",
-    body: "середнє",
-    sweetness: "сухе",
-    abv: 12.5,
-    tasteNotes: ["персик", "цедра", "солоність"],
-    pairings: ["морепродукти", "риба", "паелья", "устриці"],
-  },
-  {
-    id: "saperavi",
-    name: "Сапераві Кахеті",
-    color: "червоне",
-    grape: "Saperavi",
-    country: "Грузія",
-    region: "Кахеті",
-    priceUAH: 450,
-    tier: "middle",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 13.5,
-    tasteNotes: ["чорнослив", "ожина", "спеції"],
-    pairings: ["шашлик", "ягня", "хінкалі", "гриль", "м'ясо"],
-  },
-  {
-    id: "orange-georgia",
-    name: "Бурштинове кахетинське (квеврі)",
-    color: "оранж",
-    grape: "Rkatsiteli",
-    country: "Грузія",
-    region: "Кахеті",
-    priceUAH: 620,
-    tier: "middle",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 12.5,
-    tasteNotes: ["сушений абрикос", "чай", "горіх", "танінність"],
-    pairings: ["пряні страви", "сир", "ковбаси", "грузинська кухня", "гостре"],
-  },
-
-  // ───────────────── PREMIUM (850–3000 ₴) ─────────────────
-  {
-    id: "barolo",
-    name: "Barolo DOCG",
-    color: "червоне",
-    grape: "Nebbiolo",
-    country: "Італія",
-    region: "П’ємонт",
-    priceUAH: 2200,
-    tier: "premium",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 14.5,
-    tasteNotes: ["троянда", "дьоготь", "вишня", "трюфель"],
-    pairings: ["дичина", "трюфель", "витримані сири", "ягня", "м'ясо"],
-  },
-  {
-    id: "brunello",
-    name: "Brunello di Montalcino",
-    color: "червоне",
-    grape: "Sangiovese Grosso",
-    country: "Італія",
-    region: "Тоскана",
-    priceUAH: 1980,
-    tier: "premium",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 14.5,
-    tasteNotes: ["вишня", "шкіра", "тютюн", "спеції"],
-    pairings: ["стейк", "дичина", "ягня", "трюфель", "м'ясо"],
-  },
-  {
-    id: "chateauneuf",
-    name: "Châteauneuf-du-Pape",
-    color: "червоне",
-    grape: "Grenache blend",
-    country: "Франція",
-    region: "Долина Рони",
-    priceUAH: 1750,
-    tier: "premium",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 15,
-    tasteNotes: ["спеції", "ожина", "прованські трави", "тютюн"],
-    pairings: ["дичина", "качка", "ягня", "тушковане м'ясо", "м'ясо"],
-  },
-  {
-    id: "bordeaux-cru",
-    name: "Saint-Émilion Grand Cru",
-    color: "червоне",
-    grape: "Merlot / Cabernet Franc",
-    country: "Франція",
-    region: "Бордо",
-    priceUAH: 1650,
-    tier: "premium",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 14,
-    tasteNotes: ["чорна смородина", "кедр", "графіт"],
-    pairings: ["стейк", "ягня", "качка", "витримані сири", "м'ясо"],
-  },
-  {
-    id: "burgundy-pinot",
-    name: "Bourgogne Pinot Noir",
-    color: "червоне",
-    grape: "Pinot Noir",
-    country: "Франція",
-    region: "Бургундія",
-    priceUAH: 1200,
-    tier: "premium",
-    body: "середнє",
-    sweetness: "сухе",
-    abv: 13,
-    tasteNotes: ["малина", "лісові гриби", "підлісок"],
-    pairings: ["качка", "курка", "лосось", "гриби", "риба"],
-  },
-  {
-    id: "champagne-brut",
-    name: "Champagne Brut",
-    color: "ігристе",
-    grape: "Chardonnay / Pinot Noir",
-    country: "Франція",
-    region: "Шампань",
-    priceUAH: 1890,
-    tier: "premium",
-    body: "легке",
-    sweetness: "брют",
-    abv: 12,
-    tasteNotes: ["бріош", "цитрус", "мигдаль", "мінеральність"],
-    pairings: ["устриці", "ікра", "аперитив", "святковий стіл", "морепродукти"],
-  },
-  {
-    id: "amarone",
-    name: "Amarone della Valpolicella",
-    color: "червоне",
-    grape: "Corvina blend",
-    country: "Італія",
-    region: "Венето",
-    priceUAH: 1700,
-    tier: "premium",
-    body: "повне",
-    sweetness: "напівсухе",
-    abv: 15.5,
-    tasteNotes: ["сушена вишня", "інжир", "шоколад"],
-    pairings: ["витримані сири", "дичина", "тушковане м'ясо", "різото", "м'ясо"],
-  },
-  {
-    id: "saperavi-reserve",
-    name: "Сапераві Резерв",
-    color: "червоне",
-    grape: "Saperavi",
-    country: "Грузія",
-    region: "Кахеті (дубова витримка)",
-    priceUAH: 980,
-    tier: "premium",
-    body: "повне",
-    sweetness: "сухе",
-    abv: 14,
-    tasteNotes: ["чорна смородина", "спеції", "дуб", "ожина"],
-    pairings: ["шашлик", "ягня", "стейк", "дичина", "м'ясо"],
-  },
+const ARCHETYPES: Archetype[] = [
+  // ── Червоні
+  { grape: "Cabernet Sauvignon", typeLabel: "червоне сухе", color: "red", body: 9, acidity: 6, tannin: 9, sweetness: 1, basePrice: 14,
+    regions: [{ country: "Франція", region: "Бордо", mult: 1.6 }, { country: "Чилі", region: "Майпо", mult: 0.8 }, { country: "США", region: "Напа", mult: 2.0 }],
+    pairings: ["стейк", "м'ясо", "гриль", "бургер", "тверді сири"] },
+  { grape: "Merlot", typeLabel: "червоне сухе", color: "red", body: 7, acidity: 5, tannin: 6, sweetness: 1, basePrice: 11,
+    regions: [{ country: "Франція", region: "Бордо", mult: 1.4 }, { country: "Чилі", region: "Центральна долина", mult: 0.7 }, { country: "Італія", region: "Тоскана", mult: 1.0 }],
+    pairings: ["свинина", "курка", "паста", "піца", "м'ясо"] },
+  { grape: "Malbec", typeLabel: "червоне сухе", color: "red", body: 8, acidity: 6, tannin: 7, sweetness: 1, basePrice: 13,
+    regions: [{ country: "Аргентина", region: "Мендоса", mult: 1.0 }, { country: "Франція", region: "Каор", mult: 1.2 }],
+    pairings: ["стейк", "ребра", "гриль", "бургер", "м'ясо"] },
+  { grape: "Syrah", typeLabel: "червоне сухе", color: "red", body: 8, acidity: 6, tannin: 8, sweetness: 1, basePrice: 13,
+    regions: [{ country: "Франція", region: "Долина Рони", mult: 1.5 }, { country: "Австралія", region: "Баросса", mult: 1.1 }],
+    pairings: ["качка", "ягня", "дичина", "гриль", "м'ясо"] },
+  { grape: "Pinot Noir", typeLabel: "червоне сухе", color: "red", body: 5, acidity: 7, tannin: 4, sweetness: 1, basePrice: 18,
+    regions: [{ country: "Франція", region: "Бургундія", mult: 2.2 }, { country: "Німеччина", region: "Баден", mult: 1.2 }, { country: "Нова Зеландія", region: "Отаго", mult: 1.6 }],
+    pairings: ["качка", "лосось", "гриби", "курка", "риба"] },
+  { grape: "Sangiovese", typeLabel: "червоне сухе", color: "red", body: 7, acidity: 8, tannin: 7, sweetness: 1, basePrice: 13,
+    regions: [{ country: "Італія", region: "Тоскана", mult: 1.4 }],
+    pairings: ["паста", "піца", "томатний соус", "стейк", "м'ясо"] },
+  { grape: "Tempranillo", typeLabel: "червоне сухе", color: "red", body: 7, acidity: 6, tannin: 6, sweetness: 1, basePrice: 12,
+    regions: [{ country: "Іспанія", region: "Ріоха", mult: 1.2 }, { country: "Іспанія", region: "Рібера-дель-Дуеро", mult: 1.5 }],
+    pairings: ["ягня", "тапас", "хамон", "гриль", "м'ясо"] },
+  { grape: "Grenache", typeLabel: "червоне сухе", color: "red", body: 7, acidity: 5, tannin: 5, sweetness: 2, basePrice: 12,
+    regions: [{ country: "Франція", region: "Долина Рони", mult: 1.6 }, { country: "Іспанія", region: "Кампо-де-Борха", mult: 0.8 }],
+    pairings: ["гриль", "ковбаски", "ягня", "тушковане м'ясо", "м'ясо"] },
+  { grape: "Nebbiolo", typeLabel: "червоне сухе", color: "red", body: 8, acidity: 8, tannin: 9, sweetness: 1, basePrice: 28,
+    regions: [{ country: "Італія", region: "П’ємонт", mult: 1.8 }],
+    pairings: ["дичина", "трюфель", "витримані сири", "ягня", "м'ясо"] },
+  { grape: "Saperavi", typeLabel: "червоне сухе", color: "red", body: 8, acidity: 7, tannin: 7, sweetness: 1, basePrice: 11,
+    regions: [{ country: "Грузія", region: "Кахеті", mult: 1.0 }],
+    pairings: ["шашлик", "ягня", "хінкалі", "гриль", "м'ясо"] },
+  { grape: "Zinfandel", typeLabel: "червоне сухе", color: "red", body: 8, acidity: 5, tannin: 6, sweetness: 2, basePrice: 14,
+    regions: [{ country: "США", region: "Каліфорнія", mult: 1.3 }],
+    pairings: ["бургер", "ребра", "барбекю", "гриль", "м'ясо"] },
+  // ── Білі
+  { grape: "Sauvignon Blanc", typeLabel: "біле сухе", color: "white", body: 4, acidity: 9, tannin: 0, sweetness: 1, basePrice: 11,
+    regions: [{ country: "Франція", region: "Луара", mult: 1.4 }, { country: "Нова Зеландія", region: "Мальборо", mult: 1.2 }, { country: "Чилі", region: "Касабланка", mult: 0.7 }],
+    pairings: ["риба", "морепродукти", "салат", "козячий сир", "овочі"] },
+  { grape: "Chardonnay", typeLabel: "біле сухе", color: "white", body: 7, acidity: 6, tannin: 0, sweetness: 1, basePrice: 14,
+    regions: [{ country: "Франція", region: "Бургундія", mult: 2.0 }, { country: "Австралія", region: "Маргарет-Рівер", mult: 1.1 }, { country: "США", region: "Каліфорнія", mult: 1.3 }],
+    pairings: ["курка", "риба", "морепродукти", "паста", "вершкові соуси"] },
+  { grape: "Riesling", typeLabel: "біле напівсухе", color: "white", body: 4, acidity: 9, tannin: 0, sweetness: 4, basePrice: 13,
+    regions: [{ country: "Німеччина", region: "Мозель", mult: 1.3 }, { country: "Австрія", region: "Вахау", mult: 1.4 }],
+    pairings: ["азійська кухня", "гостре", "свинина", "тайська кухня", "качка"] },
+  { grape: "Pinot Grigio", typeLabel: "біле сухе", color: "white", body: 4, acidity: 7, tannin: 0, sweetness: 1, basePrice: 9,
+    regions: [{ country: "Італія", region: "Венето", mult: 1.0 }],
+    pairings: ["риба", "морепродукти", "паста", "салат", "курка"] },
+  { grape: "Albariño", typeLabel: "біле сухе", color: "white", body: 5, acidity: 8, tannin: 0, sweetness: 1, basePrice: 13,
+    regions: [{ country: "Іспанія", region: "Ріас-Байшас", mult: 1.2 }],
+    pairings: ["морепродукти", "риба", "устриці", "паелья"] },
+  { grape: "Gewürztraminer", typeLabel: "біле напівсухе", color: "white", body: 6, acidity: 5, tannin: 0, sweetness: 4, basePrice: 14,
+    regions: [{ country: "Франція", region: "Ельзас", mult: 1.3 }],
+    pairings: ["азійська кухня", "гостре", "пряні страви", "качка", "сир"] },
+  { grape: "Grüner Veltliner", typeLabel: "біле сухе", color: "white", body: 5, acidity: 8, tannin: 0, sweetness: 1, basePrice: 12,
+    regions: [{ country: "Австрія", region: "Вайнфіртель", mult: 1.1 }],
+    pairings: ["овочі", "риба", "шніцель", "салат", "курка"] },
+  // ── Рожеве / ігристе / оранж / десертне
+  { grape: "Grenache / Cinsault", typeLabel: "рожеве сухе", color: "rose", body: 4, acidity: 7, tannin: 1, sweetness: 1, basePrice: 12,
+    regions: [{ country: "Франція", region: "Прованс", mult: 1.4 }],
+    pairings: ["салат", "риба", "сир", "аперитив", "овочі"] },
+  { grape: "Glera", typeLabel: "ігристе брют", color: "sparkling", body: 3, acidity: 8, tannin: 0, sweetness: 2, basePrice: 11,
+    regions: [{ country: "Італія", region: "Венето", mult: 1.1 }],
+    pairings: ["аперитив", "суші", "морепродукти", "салат", "легкі закуски"] },
+  { grape: "Chardonnay / Pinot Noir", typeLabel: "ігристе брют", color: "sparkling", body: 4, acidity: 8, tannin: 0, sweetness: 1, basePrice: 30,
+    regions: [{ country: "Франція", region: "Шампань", mult: 1.8 }, { country: "Іспанія", region: "Пенедес", mult: 0.6 }],
+    pairings: ["устриці", "ікра", "аперитив", "морепродукти", "святковий стіл"] },
+  { grape: "Rkatsiteli", typeLabel: "оранжеве", color: "orange", body: 7, acidity: 6, tannin: 4, sweetness: 1, basePrice: 14,
+    regions: [{ country: "Грузія", region: "Кахеті", mult: 1.0 }],
+    pairings: ["пряні страви", "сир", "ковбаси", "грузинська кухня", "гостре"] },
+  { grape: "Sémillon", typeLabel: "десертне", color: "dessert", body: 7, acidity: 6, tannin: 0, sweetness: 9, basePrice: 22,
+    regions: [{ country: "Франція", region: "Сотерн", mult: 1.6 }],
+    pairings: ["десерт", "фуа-гра", "блакитний сир", "фрукти"] },
 ];
 
-// ───────────────────────── Хелпери ─────────────────────────
+const HOUSES = [
+  "Castello", "Domaine", "Bodega", "Tenuta", "Weingut", "Château", "Quinta",
+  "Finca", "Cantina", "Mas", "Clos", "Vinho", "Hill", "Stone", "Old Cellar",
+];
+const QUALITIES: { suffix: string; mult: number; dBody: number }[] = [
+  { suffix: "", mult: 0.6, dBody: -1 },
+  { suffix: "Reserva", mult: 1.0, dBody: 0 },
+  { suffix: "Gran Reserva", mult: 2.1, dBody: 1 },
+];
+const YEARS = [2019, 2020, 2021, 2022];
+
+function clampN(n: number, lo = 1, hi = 10): number {
+  return Math.max(lo, Math.min(hi, Math.round(n)));
+}
+
+function tierForPrice(eur: number): Tier {
+  if (eur < 10) return "budget";
+  if (eur <= 25) return "middle";
+  return "premium";
+}
+
+function buildCatalog(): Wine[] {
+  const out: Wine[] = [];
+  let i = 0;
+  for (const a of ARCHETYPES) {
+    for (const r of a.regions) {
+      for (const q of QUALITIES) {
+        // два роки на комбінацію → більше варіативності
+        for (const y of [YEARS[i % YEARS.length], YEARS[(i + 2) % YEARS.length]]) {
+          const house = HOUSES[i % HOUSES.length];
+          const price = Math.max(
+            5,
+            Math.round(a.basePrice * r.mult * q.mult + ((i * 7) % 5) - 2),
+          );
+          const grapeShort = a.grape.split(" ")[0];
+          const name = [house, grapeShort, q.suffix, y].filter(Boolean).join(" ");
+          out.push({
+            id: `w${i}`,
+            name,
+            type: a.typeLabel,
+            grape: a.grape,
+            country: r.country,
+            region: r.region,
+            year: y,
+            priceEUR: price,
+            tier: tierForPrice(price),
+            body: clampN(a.body + q.dBody),
+            acidity: clampN(a.acidity),
+            tannin: clampN(a.tannin, 0, 10),
+            sweetness: clampN(a.sweetness, 0, 10),
+            pairings: a.pairings,
+          });
+          i++;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+export const WINES: Wine[] = buildCatalog();
 
 export function getWineById(id: string): Wine | undefined {
   return WINES.find((w) => w.id === id);
 }
 
-export function winesByTier(tier: WineTier): Wine[] {
-  return WINES.filter((w) => w.tier === tier);
+export function formatPriceEUR(eur: number): string {
+  return `€${eur}`;
 }
 
-export function formatPrice(uah: number): string {
-  return `${uah.toLocaleString("uk-UA")} ₴`;
+// ───────────────── Профіль страви (fallback) ─────────────────
+
+interface DishTemplate {
+  match: string[];
+  fat: number;
+  intensity: number;
+  spice: number;
+  acidity: number;
+  note: string;
 }
 
-/** Колір акценту картки за типом вина (узгоджено з палітрою «Вечірня тераса»). */
-export function colorAccent(color: WineColor): string {
-  switch (color) {
-    case "червоне":
-      return "#7E1F2B";
-    case "біле":
-      return "#D8C896";
-    case "розе":
-      return "#C77B86";
-    case "ігристе":
-      return "#E4D29A";
-    case "оранж":
-      return "#C98A3C";
-  }
-}
-
-// ──────────────────── Fallback-підбір ────────────────────
-// Детермінований підбір за ключовими словами страви. Працює без мережі/ключа,
-// щоб демо на сцені ніколи не падало. Живий Claude дає тонші пояснення.
-
-type DishProfile = {
-  preferColors: WineColor[];
-  keywords: string[];
-  appetizer: string;
-};
-
-const DISH_PROFILES: { match: string[]; profile: DishProfile }[] = [
-  {
-    match: ["стейк", "ростбіф", "ребра", "бургер", "м'ясо", "мясо", "яловичина", "steak", "beef", "телятина"],
-    profile: {
-      preferColors: ["червоне"],
-      keywords: ["стейк", "гриль", "м'ясо", "бургер"],
-      appetizer: "Брускета з ростбіфом, руколою та пармезаном",
-    },
-  },
-  {
-    match: ["шашлик", "гриль", "барбекю", "bbq", "мангал", "ковбаски", "купати"],
-    profile: {
-      preferColors: ["червоне"],
-      keywords: ["шашлик", "гриль", "м'ясо"],
-      appetizer: "Тарілка копчених ковбасок із гірчицею",
-    },
-  },
-  {
-    match: ["качка", "ягня", "баранина", "дичина", "оленина", "качине", "duck", "lamb"],
-    profile: {
-      preferColors: ["червоне"],
-      keywords: ["качка", "ягня", "дичина"],
-      appetizer: "Паштет із качиної печінки на тості",
-    },
-  },
-  {
-    match: ["курка", "курятина", "індичка", "птиця", "chicken"],
-    profile: {
-      preferColors: ["біле", "червоне"],
-      keywords: ["курка", "птиця"],
-      appetizer: "Курячі рулетики з вершковим сиром",
-    },
-  },
-  {
-    match: ["риба", "лосось", "тунець", "форель", "дорадо", "сібас", "fish", "salmon"],
-    profile: {
-      preferColors: ["біле", "ігристе", "розе"],
-      keywords: ["риба", "морепродукти"],
-      appetizer: "Севіче з дорадо та лаймом",
-    },
-  },
-  {
-    match: ["устриці", "креветки", "мідії", "морепродукти", "паелья", "seafood", "oyster", "shrimp"],
-    profile: {
-      preferColors: ["біле", "ігристе"],
-      keywords: ["морепродукти", "устриці", "риба"],
-      appetizer: "Устриці з лимоном та чорним перцем",
-    },
-  },
-  {
-    match: ["суші", "роли", "sushi", "сашимі"],
-    profile: {
-      preferColors: ["ігристе", "біле"],
-      keywords: ["суші", "морепродукти"],
-      appetizer: "Едамаме з морською сіллю",
-    },
-  },
-  {
-    match: ["паста", "піца", "лазанья", "ризото", "різото", "болоньєзе", "карбонара", "pasta", "pizza", "томат"],
-    profile: {
-      preferColors: ["червоне"],
-      keywords: ["паста", "піца", "томатний соус"],
-      appetizer: "Брускета з томатами та базиліком",
-    },
-  },
-  {
-    match: ["сир", "сирна", "пармезан", "камамбер", "cheese", "бри"],
-    profile: {
-      preferColors: ["червоне", "оранж", "ігристе"],
-      keywords: ["сир", "витримані сири"],
-      appetizer: "Сирна тарілка з медом та волоськими горіхами",
-    },
-  },
-  {
-    match: ["гостре", "тайс", "азій", "карі", "том ям", "spicy", "thai", "wok", "вок"],
-    profile: {
-      preferColors: ["біле", "оранж"],
-      keywords: ["гостре", "азійська кухня", "тайська кухня"],
-      appetizer: "Спрінг-роли з солодким чилі",
-    },
-  },
-  {
-    match: ["десерт", "торт", "шоколад", "тірамісу", "ягоди", "dessert", "cake"],
-    profile: {
-      preferColors: ["ігристе", "розе"],
-      keywords: ["аперитив", "сир"],
-      appetizer: "Тарт із сезонними ягодами",
-    },
-  },
-  {
-    match: ["салат", "овоч", "вегетар", "веган", "брускета", "salad", "veggie"],
-    profile: {
-      preferColors: ["біле", "розе", "ігристе"],
-      keywords: ["салат", "овочі", "сир"],
-      appetizer: "Печені овочі з фетою та оливковою олією",
-    },
-  },
-  {
-    match: ["хачапурі", "хінкалі", "грузин", "лобіо"],
-    profile: {
-      preferColors: ["оранж", "червоне", "біле"],
-      keywords: ["грузинська кухня", "сир", "м'ясо"],
-      appetizer: "Пхалі з горіховою пастою",
-    },
-  },
+const DISH_TEMPLATES: DishTemplate[] = [
+  { match: ["стейк", "рібай", "ростбіф", "яловичина", "beef", "steak", "телятина"], fat: 8, intensity: 9, spice: 3, acidity: 2, note: "Жирне насичене м’ясо — потрібне щільне вино з танінами." },
+  { match: ["шашлик", "гриль", "барбекю", "bbq", "ребра", "ковбаски"], fat: 7, intensity: 8, spice: 4, acidity: 3, note: "Дим і жир гриля люблять тепле повнотіле червоне." },
+  { match: ["качка", "ягня", "баранина", "дичина", "duck", "lamb"], fat: 7, intensity: 8, spice: 4, acidity: 4, note: "Темне м’ясо з характером — до нього структурне червоне." },
+  { match: ["курка", "індичка", "птиця", "chicken"], fat: 4, intensity: 5, spice: 3, acidity: 4, note: "Ніжна птиця — гнучка пара, біле або легке червоне." },
+  { match: ["лосось", "тунець", "форель", "salmon", "стейк з риби"], fat: 5, intensity: 5, spice: 2, acidity: 5, note: "Жирніша риба тримає і насичене біле, і легке червоне." },
+  { match: ["риба", "дорадо", "сібас", "fish", "тріска"], fat: 3, intensity: 4, spice: 2, acidity: 5, note: "Делікатна риба — свіже біле з кислотністю." },
+  { match: ["устриці", "креветки", "мідії", "морепродукти", "seafood", "паелья"], fat: 3, intensity: 4, spice: 2, acidity: 7, note: "Морепродукти кличуть гостре кисле біле чи ігристе." },
+  { match: ["суші", "роли", "sushi", "сашимі"], fat: 3, intensity: 4, spice: 3, acidity: 5, note: "Суші — баланс кислотності й мінеральності, ігристе чи біле." },
+  { match: ["паста", "піца", "болоньєзе", "томат", "лазанья", "pasta", "pizza"], fat: 5, intensity: 6, spice: 3, acidity: 6, note: "Томатний соус кислотний — потрібне червоне з живою кислотністю." },
+  { match: ["карбонара", "вершков", "різото", "ризото", "альфредо"], fat: 7, intensity: 6, spice: 2, acidity: 4, note: "Вершкова текстура — до неї тілисте біле або легке червоне." },
+  { match: ["сир", "сирна", "пармезан", "камамбер", "cheese", "бри"], fat: 8, intensity: 7, spice: 2, acidity: 4, note: "Сир жирний і солоний — широка пара від ігристого до витриманого." },
+  { match: ["гостре", "тайс", "азій", "карі", "том ям", "spicy", "wok", "вок"], fat: 4, intensity: 7, spice: 9, acidity: 5, note: "Гостре гасять напівсухим ароматним білим, а не танінами." },
+  { match: ["десерт", "торт", "шоколад", "тірамісу", "ягоди", "dessert", "cake"], fat: 6, intensity: 6, spice: 2, acidity: 3, note: "Солодке має зустріти ще солодше — десертне вино." },
+  { match: ["салат", "овоч", "вегетар", "веган", "salad"], fat: 2, intensity: 3, spice: 2, acidity: 6, note: "Легка зелень — свіже кисле біле чи рожеве." },
+  { match: ["хачапурі", "хінкалі", "грузин", "лобіо"], fat: 7, intensity: 7, spice: 4, acidity: 4, note: "Грузинська кухня — у пару проситься оранж чи Сапераві." },
 ];
 
-const DEFAULT_PROFILE: DishProfile = {
-  preferColors: ["червоне", "біле"],
-  keywords: ["аперитив"],
-  appetizer: "Асорті сирів та оливок",
+const DEFAULT_DISH: DishTemplate = {
+  match: [],
+  fat: 5,
+  intensity: 5,
+  spice: 3,
+  acidity: 4,
+  note: "Збалансована страва — підійде універсальне вино.",
 };
 
-function profileForDish(dish: string): DishProfile {
+export function analyzeDishLocally(dish: string): DishAnalysis {
   const d = dish.toLowerCase();
-  for (const { match, profile } of DISH_PROFILES) {
-    if (match.some((m) => d.includes(m))) return profile;
+  const t = DISH_TEMPLATES.find((x) => x.match.some((m) => d.includes(m))) ?? DEFAULT_DISH;
+  return {
+    name: dish.trim() || "вечеря",
+    fat: t.fat,
+    intensity: t.intensity,
+    spice: t.spice,
+    acidity: t.acidity,
+    note: t.note,
+  };
+}
+
+// ───────────────── Логіка пар їжа↔вино ─────────────────
+
+/** Афінність вина до смакового профілю страви (більше = краще). */
+export function pairingScore(wine: Wine, dish: DishAnalysis): number {
+  let s = 0;
+  // Тіло вина ~ інтенсивність страви
+  s += 10 - Math.abs(dish.intensity - wine.body);
+  // Жирність гасять таніни (червоне) або кислотність (біле)
+  const cut = Math.max(wine.tannin, wine.acidity);
+  s += 10 - Math.abs(dish.fat - cut);
+  // Кислотність страви ↔ кислотність вина
+  s += 10 - Math.abs(dish.acidity - wine.acidity);
+  // Пряність: гостре любить солодкість і не любить таніни
+  if (dish.spice >= 5) {
+    s += wine.sweetness >= 3 ? 6 : 0;
+    s += 6 - Math.min(6, wine.tannin);
+  } else {
+    s += 4;
   }
-  return DEFAULT_PROFILE;
+  return s;
 }
 
-function scoreWine(wine: Wine, profile: DishProfile): number {
-  let score = 0;
-  const colorRank = profile.preferColors.indexOf(wine.color);
-  if (colorRank === 0) score += 6;
-  else if (colorRank > 0) score += 4 - colorRank;
-  for (const kw of profile.keywords) {
-    if (wine.pairings.some((p) => p.includes(kw) || kw.includes(p))) score += 3;
+export function matchScore(wine: Wine, dish: DishAnalysis): number {
+  const raw = pairingScore(wine, dish); // приблизно 10..40
+  return Math.max(80, Math.min(99, Math.round(60 + raw)));
+}
+
+/** Топ-кандидати по кожному рівню — для передачі в Claude або для fallback. */
+export function candidatesByTier(
+  dish: DishAnalysis,
+  perTier: number,
+): Record<Tier, Wine[]> {
+  const result = {} as Record<Tier, Wine[]>;
+  for (const tier of TIER_ORDER) {
+    result[tier] = WINES.filter((w) => w.tier === tier)
+      .map((w) => ({ w, s: pairingScore(w, dish) }))
+      .sort((a, b) => b.s - a.s)
+      .slice(0, perTier)
+      .map((x) => x.w);
   }
-  return score;
-}
-
-export interface RawRecommendation {
-  wineId: string;
-  tier: WineTier;
-  why: string;
-  appetizer: string;
-  matchScore: number;
-}
-
-/** Підбирає по одному вину на кожен ціновий рівень. */
-export function fallbackRecommend(dish: string): RawRecommendation[] {
-  const profile = profileForDish(dish);
-  const dishLabel = dish.trim() || "вашу вечерю";
-
-  return TIER_ORDER.map((tier) => {
-    const ranked = winesByTier(tier)
-      .map((w) => ({ w, s: scoreWine(w, profile) }))
-      .sort((a, b) => b.s - a.s);
-    const best = ranked[0].w;
-    const why = buildFallbackWhy(best, dishLabel);
-    return {
-      wineId: best.id,
-      tier,
-      why,
-      appetizer: profile.appetizer,
-      matchScore: Math.min(95, 70 + ranked[0].s),
-    };
-  });
-}
-
-function buildFallbackWhy(wine: Wine, dishLabel: string): string {
-  const notes = wine.tasteNotes.slice(0, 2).join(" і ");
-  const bodyPhrase =
-    wine.body === "повне"
-      ? "повнотіле, тримає смак"
-      : wine.body === "середнє"
-        ? "збалансоване, не перебиває смак"
-        : "легке та свіже";
-  return `${wine.name} — ${bodyPhrase}, з нотами ${notes}. Така структура гарно лягає під «${dishLabel}»: смаки підсилюють одне одного, а не сперечаються.`;
+  return result;
 }

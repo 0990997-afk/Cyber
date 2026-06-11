@@ -1,52 +1,39 @@
+import Logo from "./Logo";
+
 export default function Hero() {
   return (
-    <section className="relative mx-auto flex min-h-[88vh] w-full max-w-6xl flex-col items-center justify-center px-5 py-24 text-center">
-      {/* келих-мотив */}
-      <svg
-        viewBox="0 0 48 64"
-        className="mb-8 h-14 w-auto text-gold animate-rise"
-        fill="none"
-        aria-hidden="true"
-      >
-        <path
-          d="M12 6h24c0 12-5 20-12 20S12 18 12 6Z"
-          stroke="currentColor"
-          strokeWidth="1.5"
-        />
-        <path d="M16 9h16" stroke="currentColor" strokeWidth="1.5" opacity="0.5" />
-        <path
-          d="M24 26v24M16 56h16"
-          stroke="currentColor"
-          strokeWidth="1.5"
-        />
-        <circle cx="24" cy="16" r="3" fill="currentColor" opacity="0.7" />
-      </svg>
+    <section className="relative mx-auto flex min-h-[92vh] w-full max-w-5xl flex-col items-center justify-center px-5 py-24 text-center">
+      <div className="animate-rise">
+        <Logo size="lg" tagline />
+      </div>
 
-      <p className="animate-rise font-display text-xs uppercase tracking-[0.5em] text-gold sm:text-sm">
-        Винотека
+      <p className="animate-rise mt-8 font-mono text-xs tracking-[0.4em] text-terracotta sm:text-sm">
+        — АЛГОРИТМ ІЗ СМАКОМ —
       </p>
-      <h1 className="animate-rise mt-3 font-display text-6xl tracking-[0.18em] text-cream sm:text-8xl">
-        ТЕРАСА
+
+      <h1 className="animate-rise mt-6 max-w-3xl text-balance font-ui text-4xl font-extrabold leading-[1.08] tracking-tight text-parchment sm:text-6xl">
+        Сфотографуйте вечерю.
+        <br />
+        <span className="text-copper-gradient">Ми підберемо ідеальне вино.</span>
       </h1>
 
-      <p className="animate-rise mt-8 max-w-2xl text-balance text-lg leading-relaxed text-muted sm:text-xl">
-        Сотні етикеток. Нуль розуміння, що брати. У «Терасі» вас зустрічає
-        <span className="text-cream"> AI-сомельє</span>: опишіть вечерю — і
-        отримайте вино, на яке наважитесь із задоволенням.
+      <p className="animate-rise mt-6 max-w-xl text-balance text-lg leading-relaxed text-ash">
+        AI аналізує страву, її смаковий профіль та бюджет — і рекомендує найкращі
+        вина за секунди. З поясненням людською мовою, без снобізму.
       </p>
 
       <div className="animate-rise mt-10 flex flex-col items-center gap-4 sm:flex-row">
         <a
-          href="#somelye"
-          className="rounded-xl bg-gold px-8 py-4 font-display text-lg font-semibold tracking-wide text-bg transition-all hover:bg-gold-soft hover:shadow-[0_8px_30px_rgba(201,162,75,0.35)]"
+          href="#studio"
+          className="rounded-xl bg-terracotta px-8 py-4 font-ui text-lg font-bold tracking-wide text-cellar transition-all hover:brightness-110 hover:shadow-[0_10px_36px_-8px_rgba(200,121,58,0.5)]"
         >
-          Спитайте сомельє
+          📸 Спробувати зараз
         </a>
         <a
-          href="#somelye"
-          className="text-sm text-muted underline-offset-4 transition-colors hover:text-gold hover:underline"
+          href="#how"
+          className="text-sm text-ash underline-offset-4 transition-colors hover:text-terracotta hover:underline"
         >
-          Дивись, що до твоєї вечері за 15 секунд ↓
+          Як це працює ↓
         </a>
       </div>
     </section>

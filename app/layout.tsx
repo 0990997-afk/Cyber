@@ -1,12 +1,6 @@
 import type { Metadata } from "next";
-import { Playfair_Display, Manrope } from "next/font/google";
+import { Manrope, JetBrains_Mono, Playfair_Display } from "next/font/google";
 import "./globals.css";
-
-const playfair = Playfair_Display({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-playfair",
-  display: "swap",
-});
 
 const manrope = Manrope({
   subsets: ["latin", "cyrillic"],
@@ -14,10 +8,23 @@ const manrope = Manrope({
   display: "swap",
 });
 
+const jetbrains = JetBrains_Mono({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-jetbrains",
+  display: "swap",
+});
+
+const playfair = Playfair_Display({
+  subsets: ["latin", "cyrillic"],
+  style: ["normal", "italic"],
+  variable: "--font-playfair",
+  display: "swap",
+});
+
 export const metadata: Metadata = {
-  title: "Тераса — винотека з AI-сомельє",
+  title: "КІБЕР-СОМЕЛЬЄ — AI-Driven Wine Expertise",
   description:
-    "Не знаєте, що взяти? Опишіть вечерю або сфотографуйте страву — AI-сомельє «Тераси» підбере 2–3 вина і по-людськи пояснить чому.",
+    "Сфотографуйте вечерю — AI проаналізує смак страви та підбере ідеальне вино з поясненням людською мовою. Алгоритм із смаком.",
 };
 
 export default function RootLayout({
@@ -26,9 +33,9 @@ export default function RootLayout({
   return (
     <html
       lang="uk"
-      className={`${playfair.variable} ${manrope.variable} h-full`}
+      className={`${manrope.variable} ${jetbrains.variable} ${playfair.variable} h-full`}
     >
-      <body className="terasa-bg flex min-h-full flex-col antialiased">
+      <body className="cellar-bg flex min-h-full flex-col antialiased">
         {children}
       </body>
     </html>
