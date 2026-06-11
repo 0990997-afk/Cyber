@@ -48,7 +48,7 @@ export default function Logo({
   const lg = size === "lg";
   return (
     <div className="flex items-center gap-3">
-      <LogoMark className={`${lg ? "h-16 w-16" : "h-9 w-9"} text-terracotta`} />
+      <LogoMark className={`${lg ? "h-16 w-16" : "h-9 w-9"} text-parchment`} />
       <div className="leading-none">
         <div
           className={`font-ui font-extrabold tracking-[0.1em] text-parchment ${lg ? "text-3xl sm:text-4xl" : "text-lg"}`}
