@@ -92,7 +92,7 @@ export default function WineCard({ rec, index }: { rec: WineRec; index: number }
       <div className="mt-5 flex gap-2">
         <button
           onClick={() => setReserved(true)}
-          className="flex-1 rounded-xl bg-terracotta px-4 py-2.5 text-sm font-bold text-cellar transition hover:brightness-110"
+          className="flex-1 rounded-xl bg-ruby px-4 py-2.5 text-sm font-bold text-cellar transition hover:brightness-110"
         >
           {reserved ? "✓ Заброньовано" : "Купити"}
         </button>

@@ -22,9 +22,9 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "КІБЕР-СОМЕЛЬЄ — AI-Driven Wine Expertise",
+  title: "Cyber Sommelier — ваш персональний AI-сомельє",
   description:
-    "Сфотографуйте вечерю — AI проаналізує смак страви та підбере ідеальне вино з поясненням людською мовою. Алгоритм із смаком.",
+    "Сфотографуйте меню, винну полицю — або просто опишіть вечерю. Cyber Sommelier миттєво підбере ідеальне вино з поясненням людською мовою.",
 };
 
 export default function RootLayout({

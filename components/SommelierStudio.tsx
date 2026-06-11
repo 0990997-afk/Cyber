@@ -223,9 +223,9 @@ export default function SommelierStudio() {
   return (
     <section id="studio" className="mx-auto w-full max-w-6xl px-5 py-20">
       <div className="mx-auto max-w-2xl text-center">
-        <p className="font-mono text-xs tracking-[0.3em] text-terracotta">ДЕМО</p>
+        <p className="font-mono text-xs tracking-[0.3em] text-terracotta">СПРОБУЙТЕ ЗАРАЗ</p>
         <h2 className="mt-3 font-ui text-3xl font-extrabold text-parchment sm:text-4xl">
-          Спитайте кібер-сомельє
+          Запитайте Cyber Sommelier
         </h2>
         <p className="mt-4 text-ash">
           Сфотографуйте, опишіть або скажіть голосом — отримаєте смаковий аналіз і
@@ -357,7 +357,7 @@ export default function SommelierStudio() {
         <button
           onClick={ask}
           disabled={loading}
-          className="mt-7 w-full rounded-xl bg-terracotta px-6 py-4 font-ui text-lg font-bold text-cellar transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+          className="mt-7 w-full rounded-xl bg-ruby px-6 py-4 font-ui text-lg font-bold text-cellar transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
         >
           {loading ? "Аналізую…" : "Підібрати вино"}
         </button>
