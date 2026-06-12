@@ -9,6 +9,7 @@ import ForRestaurants from "@/components/ForRestaurants";
 import Testimonials from "@/components/Testimonials";
 import FinalCTA from "@/components/FinalCTA";
 import Footer from "@/components/Footer";
+import MobileCTA from "@/components/MobileCTA";
 
 export default function Home() {
   return (
@@ -25,7 +26,7 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main className="flex-1 pb-20 sm:pb-0">
         <Hero />
         <div className="hairline mx-auto max-w-5xl" />
         <HowItWorks />
@@ -39,6 +40,7 @@ export default function Home() {
       </main>
 
       <Footer />
+      <MobileCTA />
     </>
   );
 }

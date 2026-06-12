@@ -33,6 +33,15 @@ premium) with human-sounding explanations.
 - **SEO**: page metadata, Open Graph and Twitter card tags, targeting "AI
   Sommelier", "Wine Pairing Assistant", and "Food Photo to Wine
   Recommendation".
+- **Analytics**: `@vercel/analytics` wired into the root layout — zero-config,
+  privacy-friendly page view tracking once deployed on Vercel (no-op locally
+  and on other hosts).
+- **Error monitoring**: `app/error.tsx` and `app/global-error.tsx` provide
+  Ukrainian-language fallback UIs with retry, and log uncaught
+  errors/exceptions to the console (captured in Vercel function/runtime logs).
+- **Mobile conversion**: persistent mobile-only "Підібрати вино зараз" CTA bar
+  (`components/MobileCTA.tsx`) keeps the primary action one tap away while
+  scrolling the landing page.
 
 ## Setup
 
@@ -96,3 +105,23 @@ Wire up real-world data for restaurant wine lists / inventory (per-venue
 catalog instead of the generic ~300-wine catalog), and add basic analytics
 to measure which dish→wine pairings get the most engagement — both are
 prerequisites before pitching individual restaurants as B2B customers.
+
+## v1.0 production launch — status
+
+- **Production deployment**: this branch is build/lint/typecheck-clean and
+  ready to import into Vercel. Creating the live deployment and a public URL
+  requires access to a Vercel account/project connected to this GitHub
+  repository, which this session does not have — see the project owner for
+  the actual deploy step (Vercel dashboard → Import Project → select this
+  repo/branch → set `ANTHROPIC_API_KEY` → Deploy).
+- **Claude Vision in production**: the vision pipeline (`lib/sommelier.ts`)
+  is implemented and was validated against the fallback path in this
+  environment (no `ANTHROPIC_API_KEY` available here). Once deployed with a
+  real key, verify by uploading a food photo and confirming `engine` is
+  `"claude"`/`"claude+web"` and `photo.detectedDish` reflects the actual
+  image.
+- **30-photo real-world test set**: not run in this session — no internet
+  access to source real food photos and no Anthropic API key to call Vision.
+  This should be run post-deploy against the live URL with a curated set of
+  30 real dish photos (varied cuisines, lighting, plating) to validate
+  recognition accuracy and confidence calibration.

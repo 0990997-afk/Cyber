@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Manrope, JetBrains_Mono, Playfair_Display } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -61,6 +62,7 @@ export default function RootLayout({
     >
       <body className="cellar-bg flex min-h-full flex-col antialiased">
         {children}
+        <Analytics />
       </body>
     </html>
   );
