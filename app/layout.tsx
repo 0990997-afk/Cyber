@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, JetBrains_Mono, Playfair_Display } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 const manrope = Manrope({
@@ -21,10 +23,34 @@ const playfair = Playfair_Display({
   display: "swap",
 });
 
+const TITLE = "Cyber Sommelier — AI Sommelier & Wine Pairing Assistant";
+const DESCRIPTION =
+  "Сфотографуйте страву — Cyber Sommelier миттєво розпізнає її та підбере ідеальне вино з поясненням людською мовою. AI-сомельє: від фото страви до рекомендації вина.";
+
 export const metadata: Metadata = {
-  title: "КІБЕР-СОМЕЛЬЄ — AI-Driven Wine Expertise",
-  description:
-    "Сфотографуйте вечерю — AI проаналізує смак страви та підбере ідеальне вино з поясненням людською мовою. Алгоритм із смаком.",
+  title: TITLE,
+  description: DESCRIPTION,
+  keywords: [
+    "AI Sommelier",
+    "Wine Pairing Assistant",
+    "Food Photo to Wine Recommendation",
+    "AI-сомельє",
+    "підбір вина",
+    "вино до страви",
+  ],
+  applicationName: "Cyber Sommelier",
+  openGraph: {
+    title: TITLE,
+    description: DESCRIPTION,
+    siteName: "Cyber Sommelier",
+    locale: "uk_UA",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: TITLE,
+    description: DESCRIPTION,
+  },
 };
 
 export default function RootLayout({
@@ -37,6 +63,8 @@ export default function RootLayout({
     >
       <body className="cellar-bg flex min-h-full flex-col antialiased">
         {children}
+        <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );

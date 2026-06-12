@@ -1,16 +1,16 @@
 @import "tailwindcss";
 
 @theme {
-  --color-cellar: #ece7dc; /* фон — світлий греж/пергамент */
-  --color-cellar-2: #e4ddcf; /* інсети, поля */
+  --color-cellar: #fffdf8; /* фон — теплий білий */
+  --color-cellar-2: #faf7f2; /* інсети, поля */
   --color-barrel: #ffffff; /* картки — білі */
-  --color-barrel-2: #f8f5ef;
-  --color-parchment: #221a12; /* основний текст — чорнило */
-  --color-ash: #766c62; /* другорядний текст */
-  --color-ruby: #8a1f29; /* рубін — акценти вина */
-  --color-gold: #9a6a2e; /* золото дерева */
-  --color-terracotta: #c0622c; /* теракота — CTA, акценти */
-  --color-line: rgba(34, 26, 18, 0.12);
+  --color-barrel-2: #faf7f2;
+  --color-parchment: #1f1f1f; /* основний текст */
+  --color-ash: #5f5f5f; /* другорядний текст */
+  --color-ruby: #8b1e3f; /* рубін — основний акцент */
+  --color-gold: #d7b56d; /* золото — преміум-деталі */
+  --color-terracotta: #c96c4a; /* теракота — CTA, акценти */
+  --color-line: rgba(31, 31, 31, 0.1);
 
   --font-ui: var(--font-manrope);
   --font-mono: var(--font-jetbrains);
@@ -30,8 +30,8 @@ body {
 /* Світлий чистий фон + ледь тепле підсвічування зверху */
 .cellar-bg {
   background:
-    radial-gradient(1000px 460px at 50% -12%, rgba(192, 98, 44, 0.05), transparent 60%),
-    linear-gradient(180deg, #f1ece2 0%, #e9e2d5 100%);
+    radial-gradient(1000px 460px at 50% -12%, rgba(201, 108, 74, 0.06), transparent 60%),
+    linear-gradient(180deg, #fffdf8 0%, #faf3ea 100%);
   background-attachment: fixed;
 }
 
@@ -81,6 +81,50 @@ body {
 .animate-blink { animation: blink 1s steps(2, start) infinite; }
 
 ::selection {
-  background: rgba(192, 98, 44, 0.22);
+  background: rgba(201, 108, 74, 0.22);
   color: var(--color-parchment);
+}
+
+/* Кінематографічний фон героя — заміна відео-плейсхолдера */
+.hero-cinematic {
+  background:
+    radial-gradient(120% 80% at 18% 18%, rgba(139, 30, 63, 0.16), transparent 55%),
+    radial-gradient(110% 90% at 85% 12%, rgba(215, 181, 109, 0.22), transparent 50%),
+    radial-gradient(140% 100% at 50% 100%, rgba(201, 108, 74, 0.18), transparent 60%),
+    linear-gradient(180deg, #fffdf8 0%, #faf3ea 60%, #f7ece0 100%);
+}
+
+@keyframes floatGlass {
+  0%, 100% { transform: translateY(0) rotate(-2deg); }
+  50% { transform: translateY(-18px) rotate(2deg); }
+}
+.animate-float { animation: floatGlass 6s ease-in-out infinite; }
+
+@keyframes floatGlassSlow {
+  0%, 100% { transform: translateY(0) rotate(3deg); }
+  50% { transform: translateY(-12px) rotate(-1deg); }
+}
+.animate-float-slow { animation: floatGlassSlow 8s ease-in-out infinite; }
+
+/* Анімація «друку» в чаті */
+@keyframes typingDot {
+  0%, 60%, 100% { opacity: 0.25; transform: translateY(0); }
+  30% { opacity: 1; transform: translateY(-3px); }
+}
+.animate-typing-dot { animation: typingDot 1.2s ease-in-out infinite; }
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: none; }
+}
+.animate-fade-up {
+  animation: fadeUp 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+/* Парчментовий градієнт для текстового виділення */
+.text-ruby-gradient {
+  background: linear-gradient(180deg, var(--color-ruby), #6c1730);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }

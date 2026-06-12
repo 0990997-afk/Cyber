@@ -290,3 +290,27 @@ export function candidatesByTier(
   }
   return result;
 }
+
+/** Альтернативне вино того ж рівня — інший сорт, друге за релевантністю. */
+export function alternativeFor(wine: Wine, dish: DishAnalysis): string | undefined {
+  const alt = WINES.filter((w) => w.tier === wine.tier && w.grape !== wine.grape)
+    .map((w) => ({ w, s: pairingScore(w, dish) }))
+    .sort((a, b) => b.s - a.s)[0]?.w;
+  if (!alt) return undefined;
+  return `Якщо хочеться іншого стилю — гляньте у бік ${alt.grape} (${alt.region}, ${alt.country}).`;
+}
+
+/** Загальна порада, чого краще уникати при виборі вина до цієї страви. */
+export function avoidFor(dish: DishAnalysis): string {
+  if (dish.spice >= 6)
+    return "Уникайте дуже танінних червоних — вони підсилюють відчуття пекучості.";
+  if (dish.sweetness >= 7)
+    return "Уникайте сухих танінних червоних — на тлі солодкого вони здаватимуться кислими й гіркими.";
+  if (dish.acidity >= 7 && dish.fat <= 4)
+    return "Уникайте важких дубових вин з високим алкоголем — вони заглушать делікатний смак страви.";
+  if (dish.fat >= 7)
+    return "Уникайте легких низькокислотних білих — вони загубляться на тлі жирної страви.";
+  if (dish.intensity <= 3)
+    return "Уникайте дуже потужних, високотанінних вин — вони переб'ють делікатний смак страви.";
+  return "Уникайте надто солодких чи сильно дубових вин — вони можуть перетягнути увагу на себе.";
+}

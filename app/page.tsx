@@ -1,8 +1,15 @@
 import Logo from "@/components/Logo";
 import Hero from "@/components/Hero";
 import HowItWorks from "@/components/HowItWorks";
+import Scenarios from "@/components/Scenarios";
+import ProductDemo from "@/components/ProductDemo";
 import SommelierStudio from "@/components/SommelierStudio";
+import Benefits from "@/components/Benefits";
+import ForRestaurants from "@/components/ForRestaurants";
+import Testimonials from "@/components/Testimonials";
+import FinalCTA from "@/components/FinalCTA";
 import Footer from "@/components/Footer";
+import MobileCTA from "@/components/MobileCTA";
 
 export default function Home() {
   return (
@@ -12,21 +19,28 @@ export default function Home() {
           <Logo />
           <a
             href="#studio"
-            className="rounded-lg border border-terracotta/40 px-4 py-2 text-sm text-terracotta transition-colors hover:bg-terracotta/10"
+            className="rounded-lg border border-ruby/30 px-4 py-2 text-sm font-semibold text-ruby transition-colors hover:bg-ruby/10"
           >
             Спробувати
           </a>
         </div>
       </header>
 
-      <main className="flex-1">
+      <main className="flex-1 pb-20 sm:pb-0">
         <Hero />
         <div className="hairline mx-auto max-w-5xl" />
         <HowItWorks />
+        <Scenarios />
+        <ProductDemo />
         <SommelierStudio />
+        <Benefits />
+        <ForRestaurants />
+        <Testimonials />
+        <FinalCTA />
       </main>
 
       <Footer />
+      <MobileCTA />
     </>
   );
 }

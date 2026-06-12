@@ -45,7 +45,7 @@ function Detail({ label, value }: { label: string; value: string }) {
 export default function WineCard({ rec, index }: { rec: WineRec; index: number }) {
   const [copied, setCopied] = useState(false);
   const [reserved, setReserved] = useState(false);
-  const { name, type, region, country, price, why, match, servingTemp, decant, snack, tier } = rec;
+  const { name, type, region, country, price, why, match, servingTemp, decant, snack, tier, alternative } = rec;
   const meta = TIER_META[tier];
   const sub = [type, [region, country].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
 
@@ -89,10 +89,17 @@ export default function WineCard({ rec, index }: { rec: WineRec; index: number }
         <Detail label="ЗАКУСКА" value={snack} />
       </div>
 
+      {alternative && (
+        <p className="mt-4 rounded-lg border border-line bg-cellar/40 px-3 py-2 text-xs leading-relaxed text-ash">
+          <span className="font-mono tracking-[0.1em] text-gold">АЛЬТЕРНАТИВА · </span>
+          {alternative}
+        </p>
+      )}
+
       <div className="mt-5 flex gap-2">
         <button
           onClick={() => setReserved(true)}
-          className="flex-1 rounded-xl bg-terracotta px-4 py-2.5 text-sm font-bold text-cellar transition hover:brightness-110"
+          className="flex-1 rounded-xl bg-ruby px-4 py-2.5 text-sm font-bold text-cellar transition hover:brightness-110"
         >
           {reserved ? "✓ Заброньовано" : "Купити"}
         </button>

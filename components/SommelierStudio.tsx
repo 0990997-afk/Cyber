@@ -5,6 +5,7 @@ import type { SommelierResult, Tier } from "@/lib/types";
 import { TIER_ORDER, TIER_META } from "@/lib/types";
 import TasteProfile from "./TasteProfile";
 import WineCard from "./WineCard";
+import PhotoAnalysisCard from "./PhotoAnalysisCard";
 
 const QUICK = [
   "Рібай стейк",
@@ -23,17 +24,17 @@ const BUDGETS: { v: "any" | Tier; l: string }[] = [
 ];
 
 const STEPS_PHOTO = [
-  "Камера → Vision AI…",
-  "Визначаю страву на фото…",
-  "Будую смаковий профіль…",
-  "Шукаю реальні дані та ціни…",
-  "Формую пояснення вибору…",
+  "AI аналізує фото…",
+  "Визначає страву та інгредієнти…",
+  "Будує смаковий профіль…",
+  "Шукає реальні дані та ціни…",
+  "Підбирає вино…",
 ];
 const STEPS_TEXT = [
-  "Читаю опис страви…",
-  "Будую смаковий профіль…",
-  "Шукаю реальні дані та ціни…",
-  "Формую пояснення вибору…",
+  "Читає опис страви…",
+  "Будує смаковий профіль…",
+  "Шукає реальні дані та ціни…",
+  "Підбирає вино…",
 ];
 
 // ── Web Speech (без any) ──────────────────────────────
@@ -97,6 +98,7 @@ export default function SommelierStudio() {
   const [ttsOk, setTtsOk] = useState(false);
   const [listening, setListening] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [usedPhoto, setUsedPhoto] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const resRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<SpeechRec | null>(null);
@@ -104,16 +106,22 @@ export default function SommelierStudio() {
   const steps = mode === "photo" ? STEPS_PHOTO : STEPS_TEXT;
 
   useEffect(() => {
-    setVoiceOk(!!getRecognition());
-    setTtsOk(typeof window !== "undefined" && "speechSynthesis" in window);
+    const id = setTimeout(() => {
+      setVoiceOk(!!getRecognition());
+      setTtsOk(typeof window !== "undefined" && "speechSynthesis" in window);
+    }, 0);
+    return () => clearTimeout(id);
   }, []);
 
   useEffect(() => {
     if (!loading) return;
-    setStep(0);
     const arr = mode === "photo" ? STEPS_PHOTO : STEPS_TEXT;
+    const resetId = setTimeout(() => setStep(0), 0);
     const id = setInterval(() => setStep((s) => (s + 1) % arr.length), 1100);
-    return () => clearInterval(id);
+    return () => {
+      clearTimeout(resetId);
+      clearInterval(id);
+    };
   }, [loading, mode]);
 
   function toggleVoice() {
@@ -193,6 +201,7 @@ export default function SommelierStudio() {
     setLoading(true);
     setError(null);
     setResult(null);
+    setUsedPhoto(mode === "photo");
     try {
       const res = await fetch("/api/somelye", {
         method: "POST",
@@ -223,14 +232,29 @@ export default function SommelierStudio() {
   return (
     <section id="studio" className="mx-auto w-full max-w-6xl px-5 py-20">
       <div className="mx-auto max-w-2xl text-center">
-        <p className="font-mono text-xs tracking-[0.3em] text-terracotta">ДЕМО</p>
+        <p className="font-mono text-xs tracking-[0.3em] text-terracotta">СПРОБУЙТЕ ЗАРАЗ</p>
         <h2 className="mt-3 font-ui text-3xl font-extrabold text-parchment sm:text-4xl">
-          Спитайте кібер-сомельє
+          Запитайте Cyber Sommelier
         </h2>
         <p className="mt-4 text-ash">
           Сфотографуйте, опишіть або скажіть голосом — отримаєте смаковий аналіз і
           три вина з поясненням. Агент звіряється з реальними даними.
         </p>
+        <div className="mt-6 flex flex-wrap items-center justify-center gap-2">
+          {[
+            "🤖 AI-рекомендації вин",
+            "📷 Аналіз фото страви",
+            "⚡ Результат за секунди",
+            "🇺🇦 Українською",
+          ].map((badge) => (
+            <span
+              key={badge}
+              className="rounded-full border border-line bg-barrel/60 px-3 py-1.5 font-mono text-[11px] tracking-[0.05em] text-ash"
+            >
+              {badge}
+            </span>
+          ))}
+        </div>
       </div>
 
       <div className="mx-auto mt-10 max-w-3xl rounded-3xl border border-line bg-barrel/40 p-6 ring-copper sm:p-8">
@@ -277,9 +301,9 @@ export default function SommelierStudio() {
               >
                 <span className="text-4xl">📷</span>
                 <span className="font-ui font-semibold text-parchment">
-                  Сфотографувати або завантажити страву
+                  Завантажте фото страви, меню або винної полиці
                 </span>
-                <span className="text-xs text-ash">JPG / PNG · обробляється локально</span>
+                <span className="text-xs text-ash">JPG, PNG, WEBP або GIF · до 5 МБ</span>
               </button>
             )}
           </div>
@@ -357,7 +381,7 @@ export default function SommelierStudio() {
         <button
           onClick={ask}
           disabled={loading}
-          className="mt-7 w-full rounded-xl bg-terracotta px-6 py-4 font-ui text-lg font-bold text-cellar transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
+          className="mt-7 w-full rounded-xl bg-ruby px-6 py-4 font-ui text-lg font-bold text-cellar transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-70"
         >
           {loading ? "Аналізую…" : "Підібрати вино"}
         </button>
@@ -385,6 +409,22 @@ export default function SommelierStudio() {
 
       {result && (
         <div ref={resRef} className="mt-14 scroll-mt-24 space-y-8">
+          {result.demo && (
+            <div className="flex gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-5">
+              <span className="text-xl">🧪</span>
+              <div>
+                <p className="font-mono text-[11px] tracking-[0.2em] text-gold">ДЕМО-РЕЖИМ</p>
+                <p className="mt-1 leading-relaxed text-parchment/90">
+                  {usedPhoto
+                    ? "Демо-рекомендація без AI-аналізу фото — підбір зроблено за локальним каталогом, без виклику Vision AI."
+                    : "Демо-рекомендація — підбір зроблено за локальним каталогом, без звернення до AI."}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {result.photo && <PhotoAnalysisCard photo={result.photo} />}
+
           <TasteProfile dish={result.dish} />
 
           {result.honestNote && (
@@ -424,6 +464,18 @@ export default function SommelierStudio() {
               </p>
             )}
           </div>
+
+          {result.avoid && (
+            <div className="flex gap-3 rounded-2xl border border-line bg-cellar/40 p-5">
+              <span className="text-xl">🚫</span>
+              <div>
+                <p className="font-mono text-[11px] tracking-[0.2em] text-terracotta">
+                  ЧОГО УНИКАТИ
+                </p>
+                <p className="mt-1 leading-relaxed text-parchment/90">{result.avoid}</p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>

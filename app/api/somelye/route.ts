@@ -9,15 +9,26 @@ export const maxDuration = 60;
 const ALLOWED_MEDIA = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
-function parseDataUrl(dataUrl: unknown): { mediaType: string; data: string } | undefined {
-  if (typeof dataUrl !== "string") return undefined;
+type ImageParseResult =
+  | { ok: true; image: { mediaType: string; data: string } }
+  | { ok: false; error: string };
+
+function parseDataUrl(dataUrl: unknown): ImageParseResult | undefined {
+  if (typeof dataUrl !== "string" || !dataUrl) return undefined;
   const m = dataUrl.match(/^data:([^;]+);base64,([\s\S]+)$/);
-  if (!m) return undefined;
+  if (!m) return { ok: false, error: "Не вдалося розпізнати файл зображення." };
   const mediaType = m[1].toLowerCase();
   const data = m[2];
-  if (!ALLOWED_MEDIA.has(mediaType)) return undefined;
-  if ((data.length * 3) / 4 > MAX_IMAGE_BYTES) return undefined;
-  return { mediaType, data };
+  if (!ALLOWED_MEDIA.has(mediaType)) {
+    return {
+      ok: false,
+      error: "Непідтримуваний формат фото. Використайте JPG, PNG, WEBP або GIF.",
+    };
+  }
+  if ((data.length * 3) / 4 > MAX_IMAGE_BYTES) {
+    return { ok: false, error: "Фото завелике. Максимальний розмір — 5 МБ." };
+  }
+  return { ok: true, image: { mediaType, data } };
 }
 
 export async function POST(req: Request) {
@@ -25,7 +36,7 @@ export async function POST(req: Request) {
   try {
     body = (await req.json()) as Record<string, unknown>;
   } catch {
-    return NextResponse.json({ error: "Невалідний запит" }, { status: 400 });
+    return NextResponse.json({ error: "Невалідний запит." }, { status: 400 });
   }
 
   const dish = typeof body.dish === "string" ? body.dish.slice(0, 400) : "";
@@ -34,10 +45,18 @@ export async function POST(req: Request) {
     typeof body.budget === "string" && TIER_ORDER.includes(body.budget as Tier)
       ? (body.budget as Tier)
       : "any";
-  const image = parseDataUrl(body.image);
+
+  const parsedImage = parseDataUrl(body.image);
+  if (parsedImage && !parsedImage.ok) {
+    return NextResponse.json({ error: parsedImage.error }, { status: 400 });
+  }
+  const image = parsedImage?.ok ? parsedImage.image : undefined;
 
   if (!dish.trim() && !image) {
-    return NextResponse.json({ error: "Опишіть страву або завантажте фото." }, { status: 400 });
+    return NextResponse.json(
+      { error: "Опишіть страву або завантажте фото." },
+      { status: 400 },
+    );
   }
 
   const input: SommelierInput = { dish, occasion, budget, image };
@@ -46,7 +65,7 @@ export async function POST(req: Request) {
     const result = await runSommelier(input);
     return NextResponse.json(result);
   } catch (err) {
-    console.error("[api/somelye] fatal:", err);
+    console.error("[api/somelye] fatal:", err instanceof Error ? err.message : err);
     return NextResponse.json(
       { error: "Сомельє на хвилинку відійшов. Спробуйте ще раз." },
       { status: 500 },
