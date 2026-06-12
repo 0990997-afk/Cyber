@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { WineRec } from "@/lib/types";
 import { TIER_META } from "@/lib/types";
+import WineBottleIcon from "./WineBottleIcon";
 
 function MatchGauge({ value }: { value: number }) {
   const r = 26;
@@ -53,7 +54,7 @@ export default function WineCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [reserved, setReserved] = useState(false);
-  const { name, type, region, country, price, why, match, servingTemp, decant, snack, tier, alternative, imageUrl } = rec;
+  const { name, type, region, country, price, why, match, servingTemp, decant, snack, tier, alternative, color, imageUrl } = rec;
   const meta = TIER_META[tier];
   const sub = [type, [region, country].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
 
@@ -92,7 +93,7 @@ export default function WineCard({
         <MatchGauge value={match} />
       </div>
 
-      {imageUrl && (
+      {imageUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={imageUrl}
@@ -100,6 +101,8 @@ export default function WineCard({
           loading="lazy"
           className="mt-4 h-40 w-full rounded-xl object-cover"
         />
+      ) : (
+        <WineBottleIcon color={color} />
       )}
 
       <h3 className="mt-5 font-ui text-xl font-bold leading-tight text-parchment">{name}</h3>

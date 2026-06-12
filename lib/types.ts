@@ -2,6 +2,10 @@
 
 export type Tier = "budget" | "middle" | "premium";
 
+// Колір/стиль вина — використовується для іконки-силуету пляшки,
+// коли для сорту не задано реального фото етикетки.
+export type WineColor = "red" | "white" | "rose" | "sparkling" | "orange" | "dessert";
+
 export interface Wine {
   id: string;
   name: string;
@@ -17,7 +21,8 @@ export interface Wine {
   tannin: number;
   sweetness: number;
   pairings: string[];
-  imageUrl: string;
+  color: WineColor;
+  imageUrl?: string; // реальне фото пляшки за сортом, якщо заповнено в ARCHETYPE_IMAGES
 }
 
 // 7-вимірний смаковий профіль страви (0–10).
@@ -48,7 +53,8 @@ export interface WineRec {
   decant: string;
   snack: string;
   alternative?: string; // альтернативне вино/стиль, якщо це не підходить
-  imageUrl?: string; // фото пляшки (placeholder за сортом винограду)
+  color?: WineColor; // для іконки-силуету пляшки, якщо немає imageUrl
+  imageUrl?: string; // реальне фото пляшки, якщо заповнено для цього сорту
 }
 
 // Структурований аналіз фото страви (AI vision).

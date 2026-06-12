@@ -3,13 +3,13 @@
 // смаковим профілем (body/acidity/tannin/sweetness), €-ціною та рівнем.
 // Підбір вина відбувається ВИКЛЮЧНО по цій базі (без зовнішніх API).
 
-import type { Tier, Wine, DishAnalysis, WineRec } from "./types";
+import type { Tier, Wine, WineColor, DishAnalysis, WineRec } from "./types";
 import { TIER_ORDER } from "./types";
 
 interface Archetype {
   grape: string;
   typeLabel: string;
-  color: "red" | "white" | "rose" | "sparkling" | "orange" | "dessert";
+  color: WineColor;
   body: number;
   acidity: number;
   tannin: number;
@@ -115,14 +115,35 @@ function tierForPrice(eur: number): Tier {
   return "premium";
 }
 
-// Placeholder-фото пляшки за сортом винограду (loremflickr підбирає реальне
-// фото за ключовими словами; числовий lock стабілізує результат для сорту).
-function imageUrlFor(grape: string, color: Archetype["color"]): string {
-  const grapeWord = grape.split(/[ /]/)[0].toLowerCase();
-  let hash = 0;
-  for (const ch of grapeWord) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
-  return `https://loremflickr.com/400/500/wine,bottle,${color}?lock=${hash}`;
-}
+// Реальні фото пляшок за сортом/стилем — заповнюється вручну посиланнями на
+// фото конкретних реальних вин (Wikimedia Commons, сайт виробника тощо).
+// Порожній рядок → у картці буде показана іконка-силует за кольором вина
+// (WineBottleIcon), а не вигадане/невідповідне фото.
+const ARCHETYPE_IMAGES: Record<string, string> = {
+  "Cabernet Sauvignon": "",
+  "Merlot": "",
+  "Malbec": "",
+  "Syrah": "",
+  "Pinot Noir": "",
+  "Sangiovese": "",
+  "Tempranillo": "",
+  "Grenache": "",
+  "Nebbiolo": "",
+  "Saperavi": "",
+  "Zinfandel": "",
+  "Sauvignon Blanc": "",
+  "Chardonnay": "",
+  "Riesling": "",
+  "Pinot Grigio": "",
+  "Albariño": "",
+  "Gewürztraminer": "",
+  "Grüner Veltliner": "",
+  "Grenache / Cinsault": "",
+  "Glera": "",
+  "Chardonnay / Pinot Noir": "",
+  "Rkatsiteli": "",
+  "Sémillon": "",
+};
 
 function buildCatalog(): Wine[] {
   const out: Wine[] = [];
@@ -154,7 +175,8 @@ function buildCatalog(): Wine[] {
             tannin: clampN(a.tannin, 0, 10),
             sweetness: clampN(a.sweetness, 0, 10),
             pairings: a.pairings,
-            imageUrl: imageUrlFor(a.grape, a.color),
+            color: a.color,
+            imageUrl: ARCHETYPE_IMAGES[a.grape] || undefined,
           });
           i++;
         }

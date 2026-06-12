@@ -358,6 +358,7 @@ function parseResult(text: string, input: SommelierInput, web: boolean): Sommeli
       decant: String(r.decant ?? "").trim() || (localWine ? decantHint(localWine) : "за смаком"),
       snack: String(r.snack ?? "").trim() || (localWine ? snackFor(localWine) : "сир або оливки"),
       alternative: String(r.alternative ?? "").trim() || (localWine ? alternativeFor(localWine, dish) : undefined),
+      color: localWine?.color,
       imageUrl: localWine?.imageUrl,
     });
   }
@@ -480,6 +481,7 @@ function makeRec(wine: Wine, dish: DishAnalysis): WineRec {
     decant: decantHint(wine),
     snack: snackFor(wine),
     alternative: alternativeFor(wine, dish),
+    color: wine.color,
     imageUrl: wine.imageUrl,
   };
 }
