@@ -413,7 +413,7 @@ export default function SommelierStudio() {
             <div className="flex gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-5">
               <span className="text-xl">🧪</span>
               <div>
-                <p className="font-mono text-[11px] tracking-[0.2em] text-gold">ДЕМО-РЕЖИМ</p>
+                <p className="font-mono text-[11px] tracking-[0.2em] text-gold">AI-АГЕНТ</p>
                 <p className="mt-1 leading-relaxed text-parchment/90">
                   {usedPhoto
                     ? "Демо-рекомендація без AI-аналізу фото — підбір зроблено за локальним каталогом, без виклику Vision AI."
