@@ -61,11 +61,14 @@ export async function POST(req: Request) {
 
   const input: SommelierInput = { dish, occasion, budget, image };
 
+  const start = Date.now();
+  console.log(`[api/somelye] -> runSommelier (image=${!!image}, dish="${dish.slice(0, 60)}")`);
   try {
     const result = await runSommelier(input);
+    console.log(`[api/somelye] <- runSommelier за ${Date.now() - start}ms, engine=${result.engine}`);
     return NextResponse.json(result);
   } catch (err) {
-    console.error("[api/somelye] fatal:", err instanceof Error ? err.message : err);
+    console.error(`[api/somelye] fatal за ${Date.now() - start}ms:`, err instanceof Error ? err.message : err);
     return NextResponse.json(
       { error: "Сомельє на хвилинку відійшов. Спробуйте ще раз." },
       { status: 500 },
