@@ -9,7 +9,10 @@ let cached: Anthropic | null | undefined;
 export function getAnthropic(): Anthropic | null {
   if (cached !== undefined) return cached;
   const apiKey = process.env.ANTHROPIC_API_KEY;
-  cached = apiKey ? new Anthropic({ apiKey }) : null;
+  // maxRetries: 0 — наш власний resilience-ланцюг (lib/sommelier.ts) вже
+  // перебирає кілька конфігурацій запиту; SDK-ретраї лише множили б час
+  // очікування й могли перевищити maxDuration маршруту (60s).
+  cached = apiKey ? new Anthropic({ apiKey, maxRetries: 0 }) : null;
   return cached;
 }
 

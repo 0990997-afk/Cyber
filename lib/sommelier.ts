@@ -24,10 +24,15 @@ import type {
 
 export type { SommelierInput, SommelierResult } from "./types";
 
-// Кожна спроба виклику Claude обмежена за часом, щоб жодна з них не
-// "з'їла" увесь ліміт маршруту (maxDuration = 60s) і дала шанс наступній
-// спробі/фолбеку відпрацювати.
-const AGENT_TIMEOUT_MS = 25_000;
+// Загальний бюджет часу на весь runSommelier() — лишає ~10s запасу під
+// maxDuration маршруту (60s) для серіалізації відповіді та накладних витрат.
+const ROUTE_BUDGET_MS = 50_000;
+// Мінімальний залишок бюджету, з яким варто починати ще одну спробу.
+const MIN_ATTEMPT_MS = 8_000;
+// Максимальний таймаут одного виклику Claude, навіть якщо бюджету лишилось більше.
+const MAX_CALL_TIMEOUT_MS = 22_000;
+// Мінімальний залишок часу, щоб продовжити цикл pause_turn ще одним викликом.
+const MIN_PAUSE_TURN_MS = 5_000;
 
 // ───────────────── Пул кандидатів (локальна база) ─────────────────
 
@@ -226,7 +231,7 @@ async function callAgent(
   client: Anthropic,
   input: SommelierInput,
   pool: Wine[],
-  opts: { web: boolean; thinking: boolean },
+  opts: { web: boolean; thinking: boolean; deadline: number; label: string },
 ): Promise<SommelierResult> {
   const messages: unknown[] = [
     { role: "user", content: buildUserContent(input, pool, opts.web) },
@@ -242,20 +247,33 @@ async function callAgent(
     baseReq.output_config = { effort: "medium" };
   }
 
+  const callTimeout = Math.min(opts.deadline - Date.now(), MAX_CALL_TIMEOUT_MS);
+  let t0 = Date.now();
+  console.log(`[sommelier] -> Claude запит (${opts.label}), timeout=${callTimeout}ms`);
   let message = (await client.messages.create(
     { ...baseReq, messages } as unknown as Anthropic.MessageCreateParamsNonStreaming,
-    { timeout: AGENT_TIMEOUT_MS },
+    { timeout: callTimeout, maxRetries: 0 },
   )) as Anthropic.Message;
+  console.log(`[sommelier] <- Claude відповів (${opts.label}) за ${Date.now() - t0}ms, stop_reason=${message.stop_reason}`);
 
-  // Сервер-тул може повертати pause_turn — продовжуємо цикл.
+  // Сервер-тул може повертати pause_turn — продовжуємо цикл, поки лишається бюджет.
   let guard = 0;
   while (message.stop_reason === "pause_turn" && guard < 4) {
+    const remaining = opts.deadline - Date.now();
+    if (remaining < MIN_PAUSE_TURN_MS) {
+      console.warn(`[sommelier] (${opts.label}) бюджет часу вичерпано на pause_turn ${guard + 1}, залишок=${remaining}ms`);
+      throw new Error("Бюджет часу вичерпано під час pause_turn");
+    }
     guard++;
     messages.push({ role: "assistant", content: message.content });
+    const turnTimeout = Math.min(remaining, MAX_CALL_TIMEOUT_MS);
+    t0 = Date.now();
+    console.log(`[sommelier] -> Claude запит (${opts.label}, pause_turn ${guard}), timeout=${turnTimeout}ms`);
     message = (await client.messages.create(
       { ...baseReq, messages } as unknown as Anthropic.MessageCreateParamsNonStreaming,
-      { timeout: AGENT_TIMEOUT_MS },
+      { timeout: turnTimeout, maxRetries: 0 },
     )) as Anthropic.Message;
+    console.log(`[sommelier] <- Claude відповів (${opts.label}, pause_turn ${guard}) за ${Date.now() - t0}ms, stop_reason=${message.stop_reason}`);
   }
 
   return parseResult(textOf(message), input, opts.web);
@@ -342,16 +360,22 @@ export async function runSommelier(input: SommelierInput): Promise<SommelierResu
   const pool = candidatePool(input);
   if (!client) return fallbackResult(input);
 
-  const attempts: (() => Promise<SommelierResult>)[] = [
-    () => callAgent(client, input, pool, { web: true, thinking: true }),
-    () => callAgent(client, input, pool, { web: false, thinking: true }),
-    () => callAgent(client, input, pool, { web: false, thinking: false }),
+  const deadline = Date.now() + ROUTE_BUDGET_MS;
+  const attempts: { web: boolean; thinking: boolean; label: string }[] = [
+    { web: true, thinking: true, label: "web+thinking" },
+    { web: false, thinking: true, label: "thinking" },
+    { web: false, thinking: false, label: "plain" },
   ];
-  for (const attempt of attempts) {
+  for (const opts of attempts) {
+    const remaining = deadline - Date.now();
+    if (remaining < MIN_ATTEMPT_MS) {
+      console.warn(`[sommelier] недостатньо часу для спроби "${opts.label}" (залишок=${remaining}ms) — переходимо на fallback`);
+      break;
+    }
     try {
-      return await attempt();
+      return await callAgent(client, input, pool, { ...opts, deadline });
     } catch (e) {
-      console.warn("[sommelier] спроба не вдалась:", e instanceof Error ? e.message : e);
+      console.warn(`[sommelier] спроба "${opts.label}" не вдалась:`, e instanceof Error ? e.message : e);
     }
   }
   return fallbackResult(input);
