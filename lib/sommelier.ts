@@ -11,6 +11,8 @@ import {
   honestNoteFor,
   alternativeFor,
   avoidFor,
+  pairingReasoningFor,
+  finalPickFor,
 } from "./wines";
 import { TIER_ORDER, TIER_META } from "./types";
 import type {
@@ -75,7 +77,7 @@ ${web
 
 ${hasImage
       ? `АНАЛІЗ ФОТО: На зображенні — страва гостя. Уважно роздивись її та заповни поле "photo":
-- detected_dish: 1–2 речення українською людською мовою про те, що ти бачиш — назва страви, основні інгредієнти, спосіб приготування, і коротко чому вона потребує саме такого вина (як у прикладі: «На фото схоже на стейк із картоплею. Ймовірно, це яловичина середнього просмаження з гарніром. Страва має високу жирність, насичений смак і потребує вина з хорошою структурою та танінами.»).
+- detected_dish: 2–4 речення українською людською мовою — повноцінний опис того, що ти бачиш: (1) яка це страва або категорія страви; (2) видимі інгредієнти, спосіб приготування (гриль/смаження/запікання/сире тощо), соус або текстура, якщо їх видно; (3) ОБОВ'ЯЗКОВО чітко познач, що є фактом (видно на фото), а що — твоє припущення (напр. «Це виглядає як...», «Ймовірно, всередині...», «Не видно, але типово для такої страви...»). Пиши як сомельє, що щиро описує гостю, що бачить на тарілці, а не як підпис до фото.
 - confidence: число 0..1 — ЧЕСНА оцінка впевненості в розпізнаванні. Якщо фото нечітке, страва незвична або погано видно — став низьке значення (0.3–0.6) і чесно опиши невпевненість у detected_dish.
 - ingredients: масив 3–7 ключових інгредієнтів/компонентів, які ти бачиш або припускаєш.
 - cuisine_style: кухня/стиль (напр. «українська», «італійська», «азійська», «грузинська»).
@@ -103,16 +105,22 @@ ${hasImage
 
 АНАЛІЗ СТРАВИ (dish): назва + оцінки 0–10: fat (жирність), acidity (кислотність), sweetness (солодкість), salt (солоність), intensity (інтенсивність), spice (пряність), minerality (мінеральність). note — рядок про профіль (1 речення, конкретне, без води).
 
-ВИНА: для кожного — tier; wine_id (якщо з мого списку, інакше пропусти); name (виробник+назва+рік); type; grape; region; country; price (у форматі «€18»); match (Cyber Match Score 80–99 — ЧЕСНА оцінка, не ставити всім трьом 95+; якщо пара компромісна — став 80–87 і поясни компроміс); why (1–2 речення: НАЗВИ конкретний механізм пари — що саме в страві й вині взаємодіє, за принципами вище — а не загальні фрази на кшталт «гарно поєднується»); serving_temp; decant; snack; alternative — 1 речення про альтернативне вино/стиль для гостя, який хоче інший підхід.
+ЛОГІКА ПІДБОРУ (pairing_reasoning): у 2–4 реченнях українською поясни гостю, ЧОМУ саме такий профіль страви (жирність, кислотність, солодкість, солоність, текстура/інтенсивність, гострота) визначає підбір вина — конкретно для ЦІЄЇ страви, з прив'язкою до принципів підбору вище. Це має звучати як пояснення сомельє, а не як перелік цифр.
+
+ВИНА: для кожного — tier; wine_id (якщо з мого списку, інакше пропусти); name (виробник+назва+рік, або стиль/категорія, якщо точної пляшки немає); type; grape; region; country; price (у форматі «€18»); match (Cyber Match Score 80–99 — ЧЕСНА оцінка, не ставити всім трьом 95+; якщо пара компромісна — став 80–87 і поясни компроміс); why (1–2 речення: НАЗВИ конкретний механізм пари — що саме в страві й вині взаємодіє, за принципами вище — а не загальні фрази на кшталт «гарно поєднується»); serving_temp; decant; snack; alternative — 1 речення про альтернативне вино/стиль для гостя, який хоче інший підхід.
+
+ФІНАЛЬНИЙ ВИБІР (final_pick): обери ОДНЕ з трьох вин — те, яке найкраще пасує сьогодні — і вкажи його tier та reason (1–2 речення українською у стилі «Найкращий вибір на сьогодні: ... — тому що ...», з конкретним аргументом, чому саме воно, а не інші два).
 
 ФОРМАТ — поверни ЛИШЕ валідний JSON, без markdown:
 {
   ${hasImage ? `"photo": {"detected_dish":"","confidence":0.0,"ingredients":["",""],"cuisine_style":"","cooking_method":""},\n  ` : ""}"dish": {"name":"","fat":0,"acidity":0,"sweetness":0,"salt":0,"intensity":0,"spice":0,"minerality":0,"note":""},
+  "pairing_reasoning": "",
   "honest_note": "",
   "avoid": "",
   "recommendations": [
     {"tier":"budget","wine_id":"","name":"","type":"","grape":"","region":"","country":"","price":"€0","match":0,"why":"","serving_temp":"","decant":"","snack":"","alternative":""}
-  ]
+  ],
+  "final_pick": {"tier":"", "reason":""}
 }`;
 }
 
@@ -191,12 +199,22 @@ const recSchema = z.object({
   alternative: z.string().optional(),
 });
 
+const finalPickSchema = z
+  .object({
+    tier: z.string().optional(),
+    reason: z.string().optional(),
+  })
+  .nullable()
+  .optional();
+
 const aiResultSchema = z.object({
   photo: photoSchema,
   dish: dishSchema,
+  pairing_reasoning: z.string().optional(),
   honest_note: z.string().optional(),
   avoid: z.string().optional(),
   recommendations: z.array(recSchema).optional(),
+  final_pick: finalPickSchema,
 });
 
 type AiResult = z.infer<typeof aiResultSchema>;
@@ -342,10 +360,21 @@ function parseResult(text: string, input: SommelierInput, web: boolean): Sommeli
   if (recs.length === 0) throw new Error("Жодної валідної рекомендації");
 
   const honest = String(parsed.honest_note ?? "").trim() || honestNoteFor(input.dish);
+  const recommendations = assembleTiers(recs, dish);
+
+  const aiFinalTier = String(parsed.final_pick?.tier ?? "").trim();
+  const aiFinalReason = String(parsed.final_pick?.reason ?? "").trim();
+  const finalPick =
+    aiFinalReason && TIER_ORDER.includes(aiFinalTier as never)
+      ? { tier: aiFinalTier as (typeof TIER_ORDER)[number], reason: aiFinalReason }
+      : finalPickFor(recommendations, dish);
+
   return {
     dish,
     photo: buildPhoto(parsed.photo, !!input.image),
-    recommendations: assembleTiers(recs, dish),
+    pairingReasoning: String(parsed.pairing_reasoning ?? "").trim() || pairingReasoningFor(dish),
+    recommendations,
+    finalPick,
     honestNote: honest || undefined,
     avoid: String(parsed.avoid ?? "").trim() || avoidFor(dish),
     sources: web
@@ -361,11 +390,19 @@ export async function runSommelier(input: SommelierInput): Promise<SommelierResu
   if (!client) return fallbackResult(input);
 
   const deadline = Date.now() + ROUTE_BUDGET_MS;
-  const attempts: { web: boolean; thinking: boolean; label: string }[] = [
-    { web: true, thinking: true, label: "web+thinking" },
-    { web: false, thinking: true, label: "thinking" },
-    { web: false, thinking: false, label: "plain" },
-  ];
+  // Для запитів із фото пропускаємо web-пошук: швидкий Claude Vision +
+  // структуроване міркування сомельє важливіші за веб-контекст і мають
+  // вписатись у бюджет часу маршруту.
+  const attempts: { web: boolean; thinking: boolean; label: string }[] = input.image
+    ? [
+        { web: false, thinking: true, label: "vision+thinking" },
+        { web: false, thinking: false, label: "vision-plain" },
+      ]
+    : [
+        { web: true, thinking: true, label: "web+thinking" },
+        { web: false, thinking: true, label: "thinking" },
+        { web: false, thinking: false, label: "plain" },
+      ];
   for (const opts of attempts) {
     const remaining = deadline - Date.now();
     if (remaining < MIN_ATTEMPT_MS) {
@@ -411,7 +448,9 @@ function fallbackResult(input: SommelierInput): SommelierResult {
   });
   return {
     dish,
+    pairingReasoning: pairingReasoningFor(dish),
     recommendations,
+    finalPick: finalPickFor(recommendations, dish),
     honestNote: honestNoteFor(input.dish),
     avoid: avoidFor(dish),
     sources: ["власна база (~300 вин)"],

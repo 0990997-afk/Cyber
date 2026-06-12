@@ -3,7 +3,7 @@
 // смаковим профілем (body/acidity/tannin/sweetness), €-ціною та рівнем.
 // Підбір вина відбувається ВИКЛЮЧНО по цій базі (без зовнішніх API).
 
-import type { Tier, Wine, DishAnalysis } from "./types";
+import type { Tier, Wine, DishAnalysis, WineRec } from "./types";
 import { TIER_ORDER } from "./types";
 
 interface Archetype {
@@ -301,6 +301,66 @@ export function alternativeFor(wine: Wine, dish: DishAnalysis): string | undefin
 }
 
 /** Загальна порада, чого краще уникати при виборі вина до цієї страви. */
+/** Текстове пояснення, чому смаковий профіль страви важливий для підбору вина. */
+export function pairingReasoningFor(dish: DishAnalysis): string {
+  const parts: string[] = [];
+  if (dish.fat >= 6) {
+    parts.push(
+      `Страва досить жирна (${dish.fat}/10) — потрібні таніни або кислотність вина, які «розрізають» жир і не дають смаку здаватись важким.`,
+    );
+  } else if (dish.fat <= 3) {
+    parts.push(
+      `Страва легка, з низькою жирністю (${dish.fat}/10) — потужне дубове вино просто переб'є її, краще делікатний стиль.`,
+    );
+  }
+  if (dish.acidity >= 6) {
+    parts.push(
+      `Висока кислотність страви (${dish.acidity}/10) вимагає такої ж кислотності у вині — інакше вино здасться «плоским» і втратить свіжість поруч.`,
+    );
+  }
+  if (dish.spice >= 6) {
+    parts.push(
+      `Страва гостра (пряність ${dish.spice}/10) — танінні червоні підсилять пекучість, тож краще обрати вино з легкою солодкістю або низькими танінами, яке заспокоїть смак.`,
+    );
+  }
+  if (dish.sweetness >= 6) {
+    parts.push(
+      `Страва солодка (${dish.sweetness}/10) — сухе вино на такому тлі здасться кислим і гірким, потрібен хоча б легкий залишковий цукор у вині.`,
+    );
+  }
+  if (dish.salt >= 6) {
+    parts.push(
+      `Страва солона (${dish.salt}/10) — сіль підкреслює гіркоту й алкоголь у вині, тож краще працюють свіжі, не надто міцні стилі.`,
+    );
+  }
+  if (dish.minerality >= 6) {
+    parts.push(
+      `Мінеральність страви (${dish.minerality}/10) добре підхоплюється свіжими мінеральними білими — вони підкреслюють цей характер, а не сперечаються з ним.`,
+    );
+  }
+  parts.push(
+    `Загальна інтенсивність страви — ${dish.intensity}/10, тому тіло й потужність вина варто підбирати в тон, щоб жодне з двох не «перекрикувало» інше.`,
+  );
+  return parts.slice(0, 3).join(" ");
+}
+
+/** Один однозначний фінальний вибір — "Найкращий вибір на сьогодні". */
+export function finalPickFor(
+  recs: WineRec[],
+  dish: DishAnalysis,
+): { tier: Tier; reason: string } | undefined {
+  const best = recs.reduce<WineRec | undefined>((top, r) => {
+    if (!top || r.match > top.match) return r;
+    return top;
+  }, undefined);
+  if (!best) return undefined;
+  const tierLabel = best.tier === "premium" ? "преміум" : best.tier === "middle" ? "золота середина" : "бюджетний";
+  return {
+    tier: best.tier,
+    reason: `${best.name} (${tierLabel}, ${best.price}) — найвищий Cyber Match (${best.match}) для «${dish.name}»: ${best.why}`,
+  };
+}
+
 export function avoidFor(dish: DishAnalysis): string {
   if (dish.spice >= 6)
     return "Уникайте дуже танінних червоних — вони підсилюють відчуття пекучості.";
