@@ -19,3 +19,120 @@ jobs:
       - run: npm run lint
       - run: npx tsc --noEmit
       - run: npm run build
+
+  # Verifies that the push to `main` actually reached production on Vercel:
+  # finds the deployment for this commit, waits for it to finish building,
+  # and confirms it's a "production" target (not stuck in preview/rolled
+  # back). Requires VERCEL_TOKEN + VERCEL_PROJECT_ID repo secrets — see
+  # docs/release-pipeline.md for one-time setup. Skips cleanly if absent.
+  verify-production-deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for Vercel API credentials
+        id: creds
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ] && [ -n "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::VERCEL_TOKEN / VERCEL_PROJECT_ID secrets not set — skipping automated deployment verification. See docs/release-pipeline.md."
+          fi
+
+      - name: Wait for Vercel deployment of this commit
+        if: steps.creds.outputs.ready == 'true'
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          team_query=""
+          if [ -n "${VERCEL_TEAM_ID:-}" ]; then team_query="&teamId=$VERCEL_TEAM_ID"; fi
+
+          echo "Looking for a Vercel deployment for commit $SHA ..."
+          info=""
+          for i in $(seq 1 30); do
+            resp=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v6/deployments?projectId=$VERCEL_PROJECT_ID&limit=10${team_query}")
+            info=$(echo "$resp" | jq -c --arg sha "$SHA" \
+              '[.deployments[] | select(.meta.githubCommitSha == $sha)][0] // empty')
+            if [ -n "$info" ]; then break; fi
+            echo "  ...not found yet, retrying in 10s ($i/30)"
+            sleep 10
+          done
+
+          if [ -z "$info" ]; then
+            echo "::error::No Vercel deployment found for commit $SHA after 5 minutes. Check that Vercel's GitHub integration is connected and 'main' is the Production Branch."
+            exit 1
+          fi
+
+          dep_id=$(echo "$info" | jq -r '.uid')
+          dep_url=$(echo "$info" | jq -r '.url')
+          dep_target=$(echo "$info" | jq -r '.target // "preview"')
+
+          echo "Found deployment $dep_id (target=$dep_target). Waiting for it to finish building..."
+          dep_state="BUILDING"
+          for i in $(seq 1 30); do
+            dep_state=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+              "https://api.vercel.com/v13/deployments/$dep_id${team_query}" | jq -r '.readyState')
+            echo "  ...state=$dep_state ($i/30)"
+            if [ "$dep_state" = "READY" ] || [ "$dep_state" = "ERROR" ] || [ "$dep_state" = "CANCELED" ]; then break; fi
+            sleep 10
+          done
+
+          if [ "$dep_state" != "READY" ]; then
+            echo "::error::Deployment $dep_id ended in state '$dep_state' (not READY). Check the Vercel build logs for commit $SHA."
+            exit 1
+          fi
+
+          if [ "$dep_target" != "production" ]; then
+            echo "::error::Deployment $dep_id for commit $SHA is READY but target='$dep_target' (expected 'production'). This means main is either not set as the Production Branch in Vercel, or this deployment was not promoted automatically."
+            exit 1
+          fi
+
+          echo "production_url=https://$dep_url" >> "$GITHUB_OUTPUT"
+          echo "✅ Production deployment $dep_id is READY at https://$dep_url"
+
+      - name: Confirm the production domain points at this deployment
+        if: steps.creds.outputs.ready == 'true'
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          team_query=""
+          if [ -n "${VERCEL_TEAM_ID:-}" ]; then team_query="&teamId=$VERCEL_TEAM_ID"; fi
+
+          project=$(curl -sS -H "Authorization: Bearer $VERCEL_TOKEN" \
+            "https://api.vercel.com/v9/projects/$VERCEL_PROJECT_ID?$(echo "${team_query}" | sed 's/^&//')")
+          aliases=$(echo "$project" | jq -r '.targets.production.alias[]? // empty')
+
+          if [ -z "$aliases" ]; then
+            echo "::warning::Could not read production aliases from Vercel project — check manually that the production domain points at the latest deployment."
+            exit 0
+          fi
+
+          echo "Production domain(s):"
+          echo "$aliases"
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            if [ "${{ steps.creds.outputs.ready }}" != "true" ]; then
+              echo "## ⚠️ Deployment verification skipped"
+              echo "VERCEL_TOKEN / VERCEL_PROJECT_ID secrets are not set, so production deploy status was not checked."
+              echo "See docs/release-pipeline.md for one-time setup."
+            elif [ -n "${{ steps.deploy.outputs.production_url }}" ]; then
+              echo "## ✅ Production deployment verified"
+              echo ""
+              echo "URL: ${{ steps.deploy.outputs.production_url }}"
+            else
+              echo "## ❌ Production deployment check failed — see logs above."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"

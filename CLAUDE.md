@@ -101,3 +101,22 @@ docs/                    pitch.md, reels-script.md, funnel-map.md (marketing mat
 - `npm run lint` uses `eslint-config-next` (core-web-vitals + typescript) via
   flat config (`eslint.config.mjs`).
 - `tsconfig.json` is `strict: true` with `@/*` path alias to repo root.
+
+## Release workflow (CI/CD)
+This is a hackathon project — **work directly on `main`, no feature branches
+or PRs needed** unless the user asks for one.
+
+1. Edit code.
+2. Run `npm run lint`, `npx tsc --noEmit`, and `npm run build` — all must pass.
+3. Commit and `git push origin main` directly.
+4. GitHub Actions (`.github/workflows/ci.yml`) re-runs lint/typecheck/build on
+   every push to `main`, then checks that Vercel built and promoted a
+   **production** deployment for that commit (if `VERCEL_TOKEN` /
+   `VERCEL_PROJECT_ID` repo secrets are configured).
+5. Vercel's GitHub integration auto-deploys `main` to production — no manual
+   promotion needed.
+
+See `docs/release-pipeline.md` for the full pipeline diagram and the (small)
+list of one-time setup steps that still require a human in the Vercel/GitHub
+dashboards.
+
