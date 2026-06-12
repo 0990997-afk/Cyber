@@ -107,7 +107,11 @@ ${hasImage
 
 ЛОГІКА ПІДБОРУ (pairing_reasoning): у 2–4 реченнях українською поясни гостю, ЧОМУ саме такий профіль страви (жирність, кислотність, солодкість, солоність, текстура/інтенсивність, гострота) визначає підбір вина — конкретно для ЦІЄЇ страви, з прив'язкою до принципів підбору вище. Це має звучати як пояснення сомельє, а не як перелік цифр.
 
-ВИНА: для кожного — tier; wine_id (якщо з мого списку, інакше пропусти); name (виробник+назва+рік, або стиль/категорія, якщо точної пляшки немає); type; grape; region; country; price (у форматі «€18»); match (Cyber Match Score 80–99 — ЧЕСНА оцінка, не ставити всім трьом 95+; якщо пара компромісна — став 80–87 і поясни компроміс); why (1–2 речення: НАЗВИ конкретний механізм пари — що саме в страві й вині взаємодіє, за принципами вище — а не загальні фрази на кшталт «гарно поєднується»); serving_temp; decant; snack; alternative — 1 речення про альтернативне вино/стиль для гостя, який хоче інший підхід.
+ВИНА: для кожного — tier; wine_id (якщо з мого списку, інакше пропусти); name (виробник+назва+рік, або стиль/категорія, якщо точної пляшки немає); type; grape; region; country; price (у форматі «€18»); match (Cyber Match Score 80–99 — ЧЕСНА оцінка, не ставити всім трьом 95+; якщо пара компромісна — став 80–87 і поясни компроміс); why (${
+    hasImage
+      ? "1–2 речення: НАЗВИ конкретний механізм пари — що саме в страві й вині взаємодіє, за принципами вище — а не загальні фрази на кшталт «гарно поєднується»"
+      : "2–4 речення, розгорнуто: (1) НАЗВИ конкретний механізм смакової взаємодії зі стравою за принципами вище — що саме резонує чи балансує; (2) звʼяжи вибір із приводом/контекстом застілля, якщо гість його вказав; (3) скажи, для якого гостя чи настрою ця пляшка — кому вона сподобається найбільше. Без загальних фраз на кшталт «гарно поєднується» — лише конкретика"
+  }); serving_temp; decant; snack; alternative — 1 речення про альтернативне вино/стиль для гостя, який хоче інший підхід.
 
 ФІНАЛЬНИЙ ВИБІР (final_pick): обери ОДНЕ з трьох вин — те, яке найкраще пасує сьогодні — і вкажи його tier та reason (1–2 речення українською у стилі «Найкращий вибір на сьогодні: ... — тому що ...», з конкретним аргументом, чому саме воно, а не інші два).
 
@@ -249,7 +253,7 @@ async function callAgent(
   client: Anthropic,
   input: SommelierInput,
   pool: Wine[],
-  opts: { web: boolean; thinking: boolean; deadline: number; label: string },
+  opts: { web: boolean; thinking: boolean; deadline: number; label: string; timeoutMs?: number },
 ): Promise<SommelierResult> {
   const messages: unknown[] = [
     { role: "user", content: buildUserContent(input, pool, opts.web) },
@@ -265,7 +269,7 @@ async function callAgent(
     baseReq.output_config = { effort: "medium" };
   }
 
-  const callTimeout = Math.min(opts.deadline - Date.now(), MAX_CALL_TIMEOUT_MS);
+  const callTimeout = Math.min(opts.deadline - Date.now(), opts.timeoutMs ?? MAX_CALL_TIMEOUT_MS);
   let t0 = Date.now();
   console.log(`[sommelier] -> Claude запит (${opts.label}), timeout=${callTimeout}ms`);
   let message = (await client.messages.create(
@@ -284,7 +288,7 @@ async function callAgent(
     }
     guard++;
     messages.push({ role: "assistant", content: message.content });
-    const turnTimeout = Math.min(remaining, MAX_CALL_TIMEOUT_MS);
+    const turnTimeout = Math.min(remaining, opts.timeoutMs ?? MAX_CALL_TIMEOUT_MS);
     t0 = Date.now();
     console.log(`[sommelier] -> Claude запит (${opts.label}, pause_turn ${guard}), timeout=${turnTimeout}ms`);
     message = (await client.messages.create(
@@ -354,6 +358,7 @@ function parseResult(text: string, input: SommelierInput, web: boolean): Sommeli
       decant: String(r.decant ?? "").trim() || (localWine ? decantHint(localWine) : "за смаком"),
       snack: String(r.snack ?? "").trim() || (localWine ? snackFor(localWine) : "сир або оливки"),
       alternative: String(r.alternative ?? "").trim() || (localWine ? alternativeFor(localWine, dish) : undefined),
+      imageUrl: localWine?.imageUrl,
     });
   }
 
@@ -393,10 +398,11 @@ export async function runSommelier(input: SommelierInput): Promise<SommelierResu
   // Для запитів із фото пропускаємо web-пошук: швидкий Claude Vision +
   // структуроване міркування сомельє важливіші за веб-контекст і мають
   // вписатись у бюджет часу маршруту.
-  const attempts: { web: boolean; thinking: boolean; label: string }[] = input.image
+  const attempts: { web: boolean; thinking: boolean; label: string; timeoutMs?: number }[] = input.image
     ? [
-        { web: false, thinking: true, label: "vision+thinking" },
-        { web: false, thinking: false, label: "vision-plain" },
+        // thinking-режим занадто повільний для vision у межах ROUTE_BUDGET_MS —
+        // лишаємо одну спробу з більшим таймаутом, щоб встигнути в maxDuration маршруту.
+        { web: false, thinking: false, label: "vision-plain", timeoutMs: 45_000 },
       ]
     : [
         { web: true, thinking: true, label: "web+thinking" },
@@ -474,6 +480,7 @@ function makeRec(wine: Wine, dish: DishAnalysis): WineRec {
     decant: decantHint(wine),
     snack: snackFor(wine),
     alternative: alternativeFor(wine, dish),
+    imageUrl: wine.imageUrl,
   };
 }
 
