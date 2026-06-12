@@ -427,6 +427,30 @@ export default function SommelierStudio() {
 
           <TasteProfile dish={result.dish} />
 
+          {result.pairingReasoning && (
+            <div className="flex gap-3 rounded-2xl border border-line bg-barrel/40 p-5">
+              <span className="text-xl">🧠</span>
+              <div>
+                <p className="font-mono text-[11px] tracking-[0.2em] text-terracotta">
+                  ЧОМУ ЦЕ ВАЖЛИВО ДЛЯ ПІДБОРУ ВИНА
+                </p>
+                <p className="mt-1 leading-relaxed text-parchment/90">{result.pairingReasoning}</p>
+              </div>
+            </div>
+          )}
+
+          {result.finalPick && (
+            <div className="flex gap-3 rounded-2xl border border-gold/50 bg-gold/10 p-5">
+              <span className="text-xl">⭐</span>
+              <div>
+                <p className="font-mono text-[11px] tracking-[0.2em] text-gold">
+                  НАЙКРАЩИЙ ВИБІР НА СЬОГОДНІ
+                </p>
+                <p className="mt-1 leading-relaxed text-parchment/90">{result.finalPick.reason}</p>
+              </div>
+            </div>
+          )}
+
           {result.honestNote && (
             <div className="flex gap-3 rounded-2xl border border-ruby/40 bg-ruby/10 p-5">
               <span className="text-xl">⚖️</span>
@@ -455,7 +479,12 @@ export default function SommelierStudio() {
             </div>
             <div className="grid gap-5 lg:grid-cols-3">
               {result.recommendations.map((rec, i) => (
-                <WineCard key={rec.name + i} rec={rec} index={i} />
+                <WineCard
+                  key={rec.name + i}
+                  rec={rec}
+                  index={i}
+                  isFinalPick={result.finalPick?.tier === rec.tier}
+                />
               ))}
             </div>
             {result.sources?.length > 0 && (

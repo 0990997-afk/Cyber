@@ -42,7 +42,15 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function WineCard({ rec, index }: { rec: WineRec; index: number }) {
+export default function WineCard({
+  rec,
+  index,
+  isFinalPick,
+}: {
+  rec: WineRec;
+  index: number;
+  isFinalPick?: boolean;
+}) {
   const [copied, setCopied] = useState(false);
   const [reserved, setReserved] = useState(false);
   const { name, type, region, country, price, why, match, servingTemp, decant, snack, tier, alternative } = rec;
@@ -64,11 +72,18 @@ export default function WineCard({ rec, index }: { rec: WineRec; index: number }
 
   return (
     <article
-      className="animate-rise flex flex-col rounded-2xl border border-line bg-barrel/45 p-6 ring-copper transition-all duration-300 hover:-translate-y-1 hover:border-terracotta/40"
+      className={`animate-rise flex flex-col rounded-2xl border bg-barrel/45 p-6 ring-copper transition-all duration-300 hover:-translate-y-1 ${
+        isFinalPick ? "border-gold/60 shadow-[0_0_0_1px_rgba(212,175,55,0.25)]" : "border-line hover:border-terracotta/40"
+      }`}
       style={{ animationDelay: `${index * 90}ms` }}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
+          {isFinalPick && (
+            <p className="mb-1.5 font-mono text-[11px] tracking-[0.2em] text-gold">
+              ⭐ ВИБІР НА СЬОГОДНІ
+            </p>
+          )}
           <p className="font-mono text-[11px] tracking-[0.2em] text-terracotta">
             {meta.medal} {meta.label.toUpperCase()}
           </p>

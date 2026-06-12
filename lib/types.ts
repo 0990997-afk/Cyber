@@ -61,7 +61,9 @@ export interface PhotoAnalysis {
 export interface SommelierResult {
   dish: DishAnalysis;
   photo?: PhotoAnalysis; // присутній лише якщо фото реально проаналізовано AI vision
+  pairingReasoning?: string; // чому ці параметри страви важливі для підбору вина
   recommendations: WineRec[];
+  finalPick?: { tier: Tier; reason: string }; // "Найкращий вибір на сьогодні"
   honestNote?: string; // чесний вердикт, якщо вино — не найкраща пара
   avoid?: string; // чого уникати при виборі вина до цієї страви
   sources: string[]; // звідки дані (веб-пошук / локальна база)
