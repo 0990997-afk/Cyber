@@ -17,6 +17,7 @@ export interface Wine {
   tannin: number;
   sweetness: number;
   pairings: string[];
+  imageUrl: string;
 }
 
 // 7-вимірний смаковий профіль страви (0–10).
@@ -47,6 +48,7 @@ export interface WineRec {
   decant: string;
   snack: string;
   alternative?: string; // альтернативне вино/стиль, якщо це не підходить
+  imageUrl?: string; // фото пляшки (placeholder за сортом винограду)
 }
 
 // Структурований аналіз фото страви (AI vision).

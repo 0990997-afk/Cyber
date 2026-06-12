@@ -115,6 +115,15 @@ function tierForPrice(eur: number): Tier {
   return "premium";
 }
 
+// Placeholder-фото пляшки за сортом винограду (loremflickr підбирає реальне
+// фото за ключовими словами; числовий lock стабілізує результат для сорту).
+function imageUrlFor(grape: string, color: Archetype["color"]): string {
+  const grapeWord = grape.split(/[ /]/)[0].toLowerCase();
+  let hash = 0;
+  for (const ch of grapeWord) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return `https://loremflickr.com/400/500/wine,bottle,${color}?lock=${hash}`;
+}
+
 function buildCatalog(): Wine[] {
   const out: Wine[] = [];
   let i = 0;
@@ -145,6 +154,7 @@ function buildCatalog(): Wine[] {
             tannin: clampN(a.tannin, 0, 10),
             sweetness: clampN(a.sweetness, 0, 10),
             pairings: a.pairings,
+            imageUrl: imageUrlFor(a.grape, a.color),
           });
           i++;
         }

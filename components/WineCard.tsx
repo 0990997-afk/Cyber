@@ -53,7 +53,7 @@ export default function WineCard({
 }) {
   const [copied, setCopied] = useState(false);
   const [reserved, setReserved] = useState(false);
-  const { name, type, region, country, price, why, match, servingTemp, decant, snack, tier, alternative } = rec;
+  const { name, type, region, country, price, why, match, servingTemp, decant, snack, tier, alternative, imageUrl } = rec;
   const meta = TIER_META[tier];
   const sub = [type, [region, country].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
 
@@ -91,6 +91,16 @@ export default function WineCard({
         </div>
         <MatchGauge value={match} />
       </div>
+
+      {imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl}
+          alt={`Пляшка: ${name}`}
+          loading="lazy"
+          className="mt-4 h-40 w-full rounded-xl object-cover"
+        />
+      )}
 
       <h3 className="mt-5 font-ui text-xl font-bold leading-tight text-parchment">{name}</h3>
       <p className="mt-1 font-mono text-xs text-ash">{sub}</p>
